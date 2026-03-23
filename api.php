@@ -1,20 +1,35 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'env.php';
+
 ini_set('session.gc_maxlifetime', (string)(30 * 24 * 3600));
-session_set_cookie_params(['lifetime' => 30 * 24 * 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (int)($_SERVER['SERVER_PORT'] ?? 0) === 443
+    || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+session_set_cookie_params([
+    'lifetime' => 30 * 24 * 3600,
+    'path' => '/',
+    'httponly' => true,
+    'samesite' => 'Lax',
+    'secure' => $isHttps,
+]);
 session_start();
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('X-XSS-Protection: 1; mode=block');
+header('Referrer-Policy: strict-origin-when-cross-origin');
 
-const DB_HOST = 'localhost';
-const DB_NAME = 'u3444889_default';
-const DB_USER = 'u3444889_default';
-const DB_PASS = 'WToerYyz3760lHUT';
+define('DB_HOST', env('DB_HOST', 'localhost'));
+define('DB_NAME', env('DB_NAME', 'u3444889_default'));
+define('DB_USER', env('DB_USER', 'u3444889_default'));
+define('DB_PASS', env('DB_PASS', ''));
 const GENERAL_SUBJECT = 'Генеральная прокуратура';
 const DEFAULT_ADMIN_LOGIN = 'admin';
-const MAINTENANCE_DANGER_ACTION_PASSWORD = 'e7c3b9a1f0d2e8c4b6a5d7e9f1c3b8a2';
+define('MAINTENANCE_DANGER_ACTION_PASSWORD', env('MAINTENANCE_DANGER_ACTION_PASSWORD', ''));
 const TESTER_SEED_FULL_NAME = 'Тест помощник прокурора';
 const TESTER_SEED_AUDIT_MARKER = 'Служебный флаг тестера выдан: Тест помощник прокурора';
 const PILOT_SUBJECTS = ['Рублёвка', 'Арбат', 'Патрики', 'Тверской', 'Кутузовский'];
@@ -35,6 +50,61 @@ const STATE_KEYS = [
     'bonusSettings',
     'auditLog',
 ];
+
+function hash_password(string $password): string
+{
+    return password_hash($password, PASSWORD_BCRYPT);
+}
+
+function verify_password(string $password, string $hash): bool
+{
+    if (password_get_info($hash)['algo'] === null && $hash === $password) {
+        return true;
+    }
+    return password_verify($password, $hash);
+}
+
+function needs_rehash(string $hash): bool
+{
+    return password_get_info($hash)['algo'] === null || password_needs_rehash($hash, PASSWORD_BCRYPT);
+}
+
+function generate_csrf_token(): string
+{
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function verify_csrf_token(?string $token): bool
+{
+    $sessionToken = $_SESSION['csrf_token'] ?? '';
+    if ($sessionToken === '' || $token === null || $token === '') {
+        return false;
+    }
+    return hash_equals($sessionToken, $token);
+}
+
+function check_rate_limit(string $key, int $maxAttempts = 5, int $windowSeconds = 900): bool
+{
+    $now = time();
+    $sessionKey = 'rate_limit_' . $key;
+    $attempts = $_SESSION[$sessionKey] ?? [];
+
+    $attempts = array_filter($attempts, static fn($t) => ($now - $t) < $windowSeconds);
+    $_SESSION[$sessionKey] = array_values($attempts);
+
+    return count($attempts) < $maxAttempts;
+}
+
+function record_rate_limit(string $key): void
+{
+    $sessionKey = 'rate_limit_' . $key;
+    $attempts = $_SESSION[$sessionKey] ?? [];
+    $attempts[] = time();
+    $_SESSION[$sessionKey] = $attempts;
+}
 
 function respond(int $status, array $payload): void
 {
@@ -91,6 +161,8 @@ function role_labels(): array
 {
     return [
         'STAFF' => 'Сотрудник',
+        'SENIOR_STAFF' => 'Старший помощник прокурора',
+        'USP' => 'Прокурор УСБ',
         'BOSS' => 'Руководитель субъекта',
         'FEDERAL' => 'Федеральный сотрудник',
         'ADMIN' => 'Администратор',
@@ -262,7 +334,7 @@ function create_default_state(): array
         'users' => [[
             'id' => 'admin1',
             'login' => DEFAULT_ADMIN_LOGIN,
-            'password' => DEFAULT_ADMIN_LOGIN,
+            'password' => hash_password(DEFAULT_ADMIN_LOGIN),
             'name' => 'Система',
             'surname' => 'Администратор',
             'subject' => GENERAL_SUBJECT,
@@ -286,6 +358,13 @@ function create_default_state(): array
                 ['id' => 's1', 'title' => 'Помощник прокурора'],
                 ['id' => 's2', 'title' => 'Младший советник юстиции'],
                 ['id' => 's3', 'title' => 'Советник юстиции'],
+            ],
+            'SENIOR_STAFF' => [
+                ['id' => 'ss1', 'title' => 'Старший помощник прокурора'],
+            ],
+            'USP' => [
+                ['id' => 'usp1', 'title' => 'Прокурор УСБ'],
+                ['id' => 'usp2', 'title' => 'Старший прокурор УСБ'],
             ],
             'BOSS' => [
                 ['id' => 'b1', 'title' => 'Прокурор субъекта'],
@@ -380,6 +459,7 @@ function seed_state(PDO $pdo): bool
     $count = (int)$pdo->query('SELECT COUNT(*) FROM app_state')->fetchColumn();
     $freshlySeeded = $count === 0;
     $defaults = create_default_state();
+    $state = [];
 
     foreach ($defaults as $key => $value) {
         if ($freshlySeeded) {
@@ -694,7 +774,7 @@ function can_access_user_record(array $requester, array $targetUser): bool
         return true;
     }
 
-    if ($role === 'BOSS') {
+    if ($role === 'BOSS' || $role === 'SENIOR_STAFF') {
         return ($requester['subject'] ?? null) === ($targetUser['subject'] ?? null);
     }
 
@@ -710,6 +790,8 @@ function can_mutate_key(array $user, string $key): bool
 
     $map = [
         'STAFF' => ['reports', 'auditLog', 'activityEvents'],
+        'SENIOR_STAFF' => ['reports', 'bonuses', 'users', 'registrationRequests', 'auditLog', 'activityEvents', 'performanceReviews'],
+        'USP' => ['reports', 'auditLog', 'activityEvents'],
         'BOSS' => ['reports', 'bonuses', 'users', 'registrationRequests', 'auditLog', 'activityEvents', 'performanceReviews'],
         'FEDERAL' => ['reports', 'bonuses', 'users', 'registrationRequests', 'auditLog', 'activityEvents', 'performanceReviews'],
     ];
@@ -1206,11 +1288,21 @@ try {
                 : sanitize_public_state_for_client($state),
             'checksMeta' => $checksMeta,
             'casesMeta' => $casesMeta,
+            'csrfToken' => generate_csrf_token(),
             'meta' => [
                 'freshlySeeded' => $freshlySeeded,
                 'storage' => 'mysql',
             ],
         ]);
+    }
+
+    $csrfSafeActions = ['bootstrap', 'health', 'telegram-feed', 'login', 'submit-registration'];
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($action, $csrfSafeActions, true)) {
+        $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN']
+            ?? (read_json_body()['_csrfToken'] ?? null);
+        if (!verify_csrf_token($csrfToken)) {
+            respond(403, ['ok' => false, 'error' => 'Недействительный CSRF-токен. Обновите страницу.']);
+        }
     }
 
     if ($action === 'login') {
@@ -1223,20 +1315,33 @@ try {
             respond(422, ['ok' => false, 'error' => 'Укажите логин и пароль']);
         }
 
+        if (!check_rate_limit('login_' . $normalizedLogin)) {
+            respond(429, ['ok' => false, 'error' => 'Слишком много попыток входа. Повторите через 15 минут.']);
+        }
+
         $matchedUser = null;
-        foreach ($state['users'] as $user) {
-            if (normalize_login((string)($user['login'] ?? '')) === $normalizedLogin && (string)($user['password'] ?? '') === $password) {
+        $matchedIndex = -1;
+        foreach ($state['users'] as $idx => $user) {
+            if (normalize_login((string)($user['login'] ?? '')) === $normalizedLogin
+                && verify_password($password, (string)($user['password'] ?? ''))) {
                 $matchedUser = $user;
+                $matchedIndex = $idx;
                 break;
             }
         }
 
         if (!$matchedUser) {
+            record_rate_limit('login_' . $normalizedLogin);
             respond(401, ['ok' => false, 'error' => 'Неверный логин или пароль']);
         }
 
         if ($matchedUser['blocked'] ?? false) {
             respond(403, ['ok' => false, 'error' => 'Аккаунт заблокирован. Обратитесь к администрации.']);
+        }
+
+        if ($matchedIndex >= 0 && needs_rehash((string)($matchedUser['password'] ?? ''))) {
+            $state['users'][$matchedIndex]['password'] = hash_password($password);
+            save_state_key($pdo, 'users', $state['users']);
         }
 
         session_regenerate_id(true);
@@ -1253,6 +1358,7 @@ try {
             'state' => sanitize_state_for_client($state),
             'checksMeta' => $checksMeta,
             'casesMeta' => $casesMeta,
+            'csrfToken' => generate_csrf_token(),
             'meta' => [
                 'freshlySeeded' => $freshlySeeded,
                 'storage' => 'mysql',
@@ -1312,7 +1418,8 @@ try {
         respond(200, [
             'ok' => true,
             'userId' => $targetUser['id'],
-            'password' => (string)($targetUser['password'] ?? ''),
+            'password' => '********',
+            'notice' => 'Пароли хранятся в хэшированном виде и не могут быть отображены. Используйте сброс пароля.',
         ]);
     }
 
@@ -1352,7 +1459,7 @@ try {
         $request = [
             'id' => bin2hex(random_bytes(8)),
             'login' => $fullName,
-            'password' => $password,
+            'password' => hash_password($password),
             'name' => $parsedName['name'],
             'surname' => $parsedName['surname'],
             'requestedRole' => $positionMeta['role'],
@@ -1404,7 +1511,7 @@ try {
             respond(422, ['ok' => false, 'error' => 'Укажите текущий и новый пароль']);
         }
 
-        if (($user['password'] ?? '') !== $currentPassword) {
+        if (!verify_password($currentPassword, (string)($user['password'] ?? ''))) {
             respond(403, ['ok' => false, 'error' => 'Текущий пароль указан неверно']);
         }
 
@@ -1421,7 +1528,7 @@ try {
             if (($storedUser['id'] ?? null) !== ($user['id'] ?? null)) {
                 continue;
             }
-            $state['users'][$index]['password'] = $newPassword;
+            $state['users'][$index]['password'] = hash_password($newPassword);
             $user = $state['users'][$index];
             break;
         }
@@ -1737,10 +1844,14 @@ try {
 
     respond(404, ['ok' => false, 'error' => 'Неизвестное действие']);
 } catch (Throwable $e) {
-    respond(500, [
+    $payload = [
         'ok' => false,
         'error' => 'Внутренняя ошибка сервера',
-        'details' => $e->getMessage(),
-    ]);
+    ];
+    if (env('APP_ENV', 'production') !== 'production') {
+        $payload['details'] = $e->getMessage();
+    }
+    error_log('[FEMIDA] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    respond(500, $payload);
 }
 

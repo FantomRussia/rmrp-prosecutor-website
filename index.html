@@ -7,12 +7,14 @@
 <link rel="icon" type="image/png" href="Group_13388_1_1_1.png?v=20260313b">
 <link rel="shortcut icon" type="image/png" href="Group_13388_1_1_1.png?v=20260313b">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=PT+Sans:wght@400;700&display=swap" rel="stylesheet">
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script crossorigin="anonymous" src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin="anonymous" src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script crossorigin="anonymous" src="https://unpkg.com/@babel/standalone@7.26.5/babel.min.js"></script>
+<script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #04122b; color: #f2f7ff; overflow-x: hidden; line-height: 1.5; font-family: 'PT Sans', sans-serif; }
+  body { background: #04122b; color: #f2f7ff; overflow-x: hidden; line-height: 1.5; font-family: 'PT Sans', sans-serif; word-break: break-word; }
+  a { word-break: break-all; }
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: #04122b; }
   ::-webkit-scrollbar-thumb { background: #174b98; border-radius: 3px; }
@@ -54,6 +56,12 @@
   button, .btn-hover { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
   .nav-item { min-height: 44px; display: flex; align-items: center; }
 
+  /* --- Laptop 1280px --- */
+  @media (max-width: 1280px) {
+    .app-main { padding: 28px 24px !important; }
+    .cabinet-class-rank-card { min-width: 140px !important; }
+  }
+
   /* --- Tablet 768px --- */
   @media (max-width: 768px) {
     .responsive-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -8px; padding: 0 8px; }
@@ -65,6 +73,13 @@
     .resp-grid-2col { grid-template-columns: 1fr !important; }
     .checks-grid { grid-template-columns: 1fr !important; }
     .checks-sidebar { max-height: 320px; overflow-y: auto; }
+    .cabinet-medals-block { margin-top: 12px !important; }
+    .calendar-grid { font-size: 12px !important; }
+    .calendar-grid td { padding: 4px 2px !important; }
+    .case-detail-section { flex-direction: column !important; }
+    .case-detail-section > div { min-width: 0 !important; width: 100% !important; }
+    .case-info-row { flex-direction: column !important; gap: 8px !important; }
+    .case-info-row > div { min-width: 0 !important; flex: 1 1 100% !important; }
   }
 
   /* --- Phone 480px --- */
@@ -87,6 +102,13 @@
     .checks-grid { gap: 12px !important; }
     .checks-tab-bar { overflow-x: auto; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
     .checks-tab-bar > button { flex-shrink: 0; white-space: nowrap; }
+    h1 { font-size: 20px !important; word-break: break-word; }
+    h2 { font-size: 18px !important; }
+    select, input, textarea { font-size: 16px !important; }
+    .calendar-grid { font-size: 11px !important; }
+    .calendar-grid th { padding: 4px 1px !important; font-size: 10px !important; }
+    .calendar-grid td { padding: 3px 1px !important; height: auto !important; min-height: 36px; }
+    .calendar-grid .cal-event-dot { width: 5px !important; height: 5px !important; }
   }
 
   /* --- Print --- */
@@ -101,10 +123,65 @@
     #approved-check-report th, #approved-check-report td { border: 1px solid #999 !important; padding: 6px 10px !important; color: #000 !important; }
     #approved-check-report th { background: #eee !important; }
   }
+
+  /* Toast animation */
+  @keyframes toastSlideIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+  /* Skeleton shimmer */
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  /* Page transition */
+  @keyframes pageSlide { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .page-transition { animation: pageSlide 0.35s ease; }
+  /* Pull-to-refresh indicator */
+  .pull-indicator { display: none; text-align: center; padding: 10px; color: #8ea5c7; font-size: 13px; }
+  .pull-indicator.visible { display: block; animation: fadeIn 0.3s ease; }
+  /* Focus visible for accessibility */
+  :focus-visible { outline: 2px solid #5bc0eb; outline-offset: 2px; }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #5bc0eb; outline-offset: 2px; }
+  /* Light theme body override */
+  body.light-theme { background: #f0f4f8 !important; color: #1a1d21 !important; }
+  body.light-theme ::-webkit-scrollbar-track { background: #f0f4f8; }
+  body.light-theme ::-webkit-scrollbar-thumb { background: #c8d6e5; }
+  body.light-theme ::-webkit-scrollbar-thumb:hover { background: #8395a7; }
+  body.light-theme .nav-item:hover { background: #0077b60a !important; }
+  body.light-theme .check-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+  body.light-theme .row-hover:hover { background: #0077b608 !important; }
+  body.light-theme ::placeholder { color: #718096; }
+
+  /* Tablet table scroll indicator */
+  @media (min-width: 481px) and (max-width: 1024px) {
+    .responsive-table-wrap { position: relative; }
+    .responsive-table-wrap::after {
+      content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 32px;
+      background: linear-gradient(to left, #04122b 0%, transparent 100%);
+      pointer-events: none; opacity: 0.6; border-radius: 0 8px 8px 0;
+    }
+    .responsive-table-wrap::-webkit-scrollbar { height: 4px; }
+  }
+
+  /* Nav item active indicator animation */
+  .nav-item { transition: all 0.2s ease; position: relative; }
+  .nav-item::before {
+    content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    width: 3px; height: 0; background: #5bc0eb; border-radius: 0 2px 2px 0;
+    transition: height 0.2s ease;
+  }
+  .nav-item.nav-active::before { height: 60%; }
+  .nav-item.nav-active { background: #023e8a30 !important; }
+
+  /* Footer disclaimer styling */
+  .app-footer-disclaimer {
+    border-top: 1px solid #174b9844; margin-top: 40px; padding-top: 20px;
+    text-align: center; font-size: 12px; color: #8ea5c7; line-height: 1.6;
+  }
+
+  /* Onboarding pulse */
+  @keyframes onboardPulse { 0%, 100% { box-shadow: 0 0 0 0 #5bc0eb44; } 50% { box-shadow: 0 0 0 8px #5bc0eb00; } }
+  .onboard-highlight { animation: onboardPulse 2s ease infinite; }
 </style>
 </head>
 <body>
 <div id="root"></div>
+<script type="text/babel" src="ui-toolkit.js?v=20260323a"></script>
 <script type="text/babel" src="checks-ui.js?v=20260318c"></script>
 <script type="text/babel" src="cases-ui.js?v=20260319b"></script>
 <script type="text/babel">
@@ -117,6 +194,9 @@ const DEFAULT_POSITIONS = {
     { id: "s1", title: "Помощник прокурора" },
     { id: "s2", title: "Младший советник юстиции" },
     { id: "s3", title: "Советник юстиции" },
+  ],
+  SENIOR_STAFF: [
+    { id: "ss1", title: "Старший помощник прокурора" },
   ],
   BOSS: [
     { id: "b1", title: "Прокурор субъекта" },
@@ -192,6 +272,8 @@ const DEFAULT_ACTIVITY_EVENT_TYPES = [
   { id: "warning", label: "Назначение предупреждения", kind: "person", icon: "⚠️", color: "#ffd166" },
   { id: "disciplinary", label: "Дисциплинарное взыскание", kind: "person", icon: "📛", color: "#ff7b7b" },
   { id: "official_visit", label: "Официальный визит / лекция", kind: "visit", icon: "🎓", color: "#8fc0ff" },
+  { id: "news", label: "Новости", kind: "news", icon: "📰", color: "#4ea8de" },
+  { id: "duty", label: "Дежурство", kind: "duty", icon: "🛡", color: "#e67e22" },
 ];
 const DEFAULT_ACTIVITY_SETTINGS = {
   pilotSubjects: PILOT_SUBJECTS,
@@ -204,13 +286,15 @@ const PERFORMANCE_REVIEW_STATUS = {
   approved: { label: "Утверждено", color: "#2f9e8f" },
 };
 
-const ROLE_HIERARCHY = { STAFF: 0, BOSS: 1, FEDERAL: 2, ADMIN: 3 };
+const ROLE_HIERARCHY = { STAFF: 0, SENIOR_STAFF: 0, USP: 1, BOSS: 1, FEDERAL: 2, ADMIN: 3 };
 const GENERAL_SUBJECT = "Генеральная прокуратура";
 const GENERAL_PROSECUTOR_POSITION_ID = "f1";
 const ROLE_OPTIONS = ["STAFF", "BOSS", "FEDERAL", "ADMIN"];
-const MANAGED_ROLE_OPTIONS = ["STAFF", "BOSS", "FEDERAL"];
+const MANAGED_ROLE_OPTIONS = ["STAFF", "SENIOR_STAFF", "USP", "BOSS", "FEDERAL"];
 const ROLE_LABELS = {
   STAFF: "Сотрудник",
+  SENIOR_STAFF: "Старший помощник",
+  USP: "Прокурор УСБ",
   BOSS: "Руководитель субъекта",
   FEDERAL: "Федеральный сотрудник",
   ADMIN: "Администратор",
@@ -225,6 +309,17 @@ const NAV_ITEMS = {
   STAFF: [
     { id: "my-cabinet", label: "Мой кабинет", icon: "👤" },
     { id: "my-report", label: "Мой отчёт", icon: "📋" },
+  ],
+  SENIOR_STAFF: [
+    { id: "my-cabinet", label: "Мой кабинет", icon: "👤" },
+    { id: "my-report", label: "Журнал деятельности", icon: "📓" },
+    { id: "subject-control", label: "Контроль субъекта", icon: "🔍" },
+    { id: "analytics", label: "Аналитика", icon: "📊" },
+  ],
+  USP: [
+    { id: "my-cabinet", label: "Мой кабинет", icon: "👤" },
+    { id: "my-report", label: "Журнал деятельности", icon: "📓" },
+    { id: "analytics", label: "Аналитика", icon: "📊" },
   ],
   BOSS: [
     { id: "my-cabinet", label: "Мой кабинет", icon: "👤" },
@@ -322,7 +417,7 @@ function canAccessChecksModule(user, checksMeta = DEFAULT_CHECKS_META, positions
   if (!user) return false;
   const enabledSubjects = checksMeta?.settings?.enabledSubjects || DEFAULT_CHECKS_META.settings.enabledSubjects;
   if (hasSystemAdminAccess(user) || user.role === "FEDERAL") return true;
-  if (user.role === "BOSS" && isSubjectProsecutorPositionId(user.positionId, positions) && enabledSubjects.includes(user.subject)) return true;
+  if ((user.role === "BOSS" || user.role === "SENIOR_STAFF") && enabledSubjects.includes(user.subject)) return true;
   if (user.isPreviewUser) return false;
   return Boolean(checksMeta?.availableForCurrentUser || checksMeta?.permissions?.canAccessModule);
 }
@@ -332,7 +427,9 @@ function canAccessCasesModule(user, checksMeta = DEFAULT_CHECKS_META) {
   const enabledSubjects = checksMeta?.settings?.enabledSubjects || DEFAULT_CHECKS_META.settings.enabledSubjects;
   if (hasSystemAdminAccess(user)) return true;
   if (user.role === "FEDERAL") return true;
+  if (user.role === "USP" && enabledSubjects.includes(user.subject)) return true;
   if (user.role === "BOSS" && enabledSubjects.includes(user.subject)) return true;
+  if (user.role === "SENIOR_STAFF" && enabledSubjects.includes(user.subject)) return true;
   if (user.role === "STAFF" && enabledSubjects.includes(user.subject)) return true;
   return false;
 }
@@ -401,6 +498,7 @@ function getNavItemsForUser(user, activitySettings = DEFAULT_ACTIVITY_SETTINGS, 
 }
 
 function isPageAvailableForUser(user, pageId, activitySettings = DEFAULT_ACTIVITY_SETTINGS, checksMeta = DEFAULT_CHECKS_META, positions = DEFAULT_POSITIONS) {
+  if (pageId === "notifications") return true;
   const allowedPages = getNavItemsForUser(user, activitySettings, checksMeta, positions);
   return allowedPages.some(item => item.id === pageId) || (hasSystemAdminAccess(user) && ADMIN_PANEL_SECTION_IDS.includes(pageId));
 }
@@ -598,7 +696,7 @@ function normalizeActivitySettings(settings, fallback = DEFAULT_ACTIVITY_SETTING
     .map((item, index) => ({
       id: item.id || `event_type_${index + 1}`,
       label: (item.label || "").trim(),
-      kind: item.kind === "visit" ? "visit" : "person",
+      kind: ["visit", "news", "duty"].includes(item.kind) ? item.kind : "person",
       icon: item.icon || (fallback.eventTypes[index]?.icon || "•"),
       color: item.color || (fallback.eventTypes[index]?.color || "#5fa8ff"),
     }))
@@ -636,6 +734,17 @@ function normalizeActivityEvent(event, activitySettings = DEFAULT_ACTIVITY_SETTI
     participantUserIds: Array.from(new Set((Array.isArray(source.visitRecord?.participantUserIds) ? source.visitRecord.participantUserIds : []).filter(Boolean))),
     description: (source.visitRecord?.description || "").trim(),
   } : null;
+  const newsRecord = typeMeta.kind === "news" ? {
+    headline: (source.newsRecord?.headline || "").trim(),
+    body: (source.newsRecord?.body || "").trim(),
+  } : null;
+  const dutyRecord = typeMeta.kind === "duty" ? {
+    dutyTimeFrom: (source.dutyRecord?.dutyTimeFrom || "").trim(),
+    dutyTimeTo: (source.dutyRecord?.dutyTimeTo || "").trim(),
+    screenshotStart: (source.dutyRecord?.screenshotStart || "").trim(),
+    screenshotEnd: (source.dutyRecord?.screenshotEnd || "").trim(),
+    description: (source.dutyRecord?.description || "").trim(),
+  } : null;
   return {
     id: source.id || generateId(),
     type: typeMeta.id,
@@ -650,6 +759,8 @@ function normalizeActivityEvent(event, activitySettings = DEFAULT_ACTIVITY_SETTI
     updatedBy: source.updatedBy || source.authorUserId || null,
     personRecord,
     visitRecord,
+    newsRecord,
+    dutyRecord,
   };
 }
 
@@ -692,11 +803,11 @@ function isPilotSubject(subject, activitySettings = DEFAULT_ACTIVITY_SETTINGS) {
 }
 
 function isPilotUser(user, activitySettings = DEFAULT_ACTIVITY_SETTINGS) {
-  return Boolean(user) && ["STAFF", "BOSS"].includes(user.role) && isPilotSubject(user.subject, activitySettings);
+  return Boolean(user) && ["STAFF", "SENIOR_STAFF", "BOSS"].includes(user.role) && isPilotSubject(user.subject, activitySettings);
 }
 
 function canViewPilotAnalytics(user, activitySettings = DEFAULT_ACTIVITY_SETTINGS) {
-  return Boolean(user) && (isPilotUser(user, activitySettings) || user.role === "FEDERAL" || hasSystemAdminAccess(user));
+  return Boolean(user) && (isPilotUser(user, activitySettings) || user.role === "FEDERAL" || user.role === "USP" || hasSystemAdminAccess(user));
 }
 
 function canViewPilotFactionsSummaryPage(user, activitySettings = DEFAULT_ACTIVITY_SETTINGS) {
@@ -760,6 +871,14 @@ function getActivityEventTitle(event, factions, activitySettings = DEFAULT_ACTIV
   if (isVisitActivityEvent(event, activitySettings)) {
     return `${typeMeta.label}: ${event?.visitRecord?.topic || "Без темы"}`;
   }
+  if (typeMeta.kind === "news") {
+    return `${typeMeta.label}: ${event?.newsRecord?.headline || "Без заголовка"}`;
+  }
+  if (typeMeta.kind === "duty") {
+    const from = event?.dutyRecord?.dutyTimeFrom || "?";
+    const to = event?.dutyRecord?.dutyTimeTo || "?";
+    return `${typeMeta.label}: ${from} — ${to}`;
+  }
   const target = event?.personRecord?.targetFullName || event?.personRecord?.targetId || "Без лица";
   return `${typeMeta.label}: ${target}`;
 }
@@ -778,6 +897,27 @@ function getActivityEventSummary(event, factions, users, activitySettings = DEFA
       primary: event?.visitRecord?.topic || "Тема не указана",
       secondary: participantNames || "Участники не выбраны",
       reason: event?.visitRecord?.description || "—",
+    };
+  }
+  if (typeMeta.kind === "news") {
+    return {
+      typeLabel: typeMeta.label,
+      factionName,
+      primary: event?.newsRecord?.headline || "Без заголовка",
+      secondary: "",
+      reason: event?.newsRecord?.body || "—",
+    };
+  }
+  if (typeMeta.kind === "duty") {
+    const from = event?.dutyRecord?.dutyTimeFrom || "?";
+    const to = event?.dutyRecord?.dutyTimeTo || "?";
+    const hasScreenshots = (event?.dutyRecord?.screenshotStart || event?.dutyRecord?.screenshotEnd) ? "Скриншоты приложены" : "Скриншоты не приложены";
+    return {
+      typeLabel: typeMeta.label,
+      factionName,
+      primary: `Дежурство с ${from} по ${to}`,
+      secondary: hasScreenshots,
+      reason: event?.dutyRecord?.description || "—",
     };
   }
   return {
@@ -919,7 +1059,7 @@ function getPilotVisibleEventsForUser(user, activityEvents, periodKey, activityS
     const filtered = subjectFilter ? periodEvents.filter(event => event.authorSubject === subjectFilter) : periodEvents;
     return filtered.sort((a, b) => new Date(getActivityEventDate(b) || 0) - new Date(getActivityEventDate(a) || 0));
   }
-  if (user.role === "BOSS" && isPilotUser(user, activitySettings)) {
+  if (((user.role === "BOSS" || user.role === "SENIOR_STAFF") && isPilotUser(user, activitySettings)) || user.role === "USP") {
     return periodEvents
       .filter(event => event.authorSubject === user.subject)
       .sort((a, b) => new Date(getActivityEventDate(b) || 0) - new Date(getActivityEventDate(a) || 0));
@@ -947,6 +1087,15 @@ function createDefaultPilotActivityForm(user, factions, activitySettings = DEFAU
     topic: source?.visitRecord?.topic || "",
     participantUserIds: source?.visitRecord?.participantUserIds?.length ? [...source.visitRecord.participantUserIds] : [user?.id].filter(Boolean),
     description: source?.visitRecord?.description || "",
+    // news fields
+    headline: source?.newsRecord?.headline || "",
+    newsBody: source?.newsRecord?.body || "",
+    // duty fields
+    dutyTimeFrom: source?.dutyRecord?.dutyTimeFrom || "",
+    dutyTimeTo: source?.dutyRecord?.dutyTimeTo || "",
+    screenshotStart: source?.dutyRecord?.screenshotStart || "",
+    screenshotEnd: source?.dutyRecord?.screenshotEnd || "",
+    dutyDescription: source?.dutyRecord?.description || "",
   };
 }
 
@@ -1021,6 +1170,33 @@ function buildPilotActivityPayload({ form, user, editingEvent, activitySettings 
     }, activitySettings);
   }
 
+  if (typeMeta.kind === "news") {
+    return normalizeActivityEvent({
+      ...baseEvent,
+      personRecord: null,
+      visitRecord: null,
+      newsRecord: {
+        headline: form.headline,
+        body: form.newsBody,
+      },
+    }, activitySettings);
+  }
+
+  if (typeMeta.kind === "duty") {
+    return normalizeActivityEvent({
+      ...baseEvent,
+      personRecord: null,
+      visitRecord: null,
+      dutyRecord: {
+        dutyTimeFrom: form.dutyTimeFrom,
+        dutyTimeTo: form.dutyTimeTo,
+        screenshotStart: form.screenshotStart,
+        screenshotEnd: form.screenshotEnd,
+        description: form.dutyDescription,
+      },
+    }, activitySettings);
+  }
+
   return normalizeActivityEvent({
     ...baseEvent,
     visitRecord: null,
@@ -1046,6 +1222,17 @@ function validatePilotActivityForm(form, typeMeta, activitySettings = DEFAULT_AC
     if (!form.topic.trim()) return "Укажите тему официального визита.";
     if (!(form.participantUserIds || []).length) return "Выберите минимум одного участника от прокуратуры.";
     if (!form.description.trim()) return "Заполните описание или цель мероприятия.";
+    return "";
+  }
+
+  if (typeMeta.kind === "news") {
+    if (!form.headline.trim()) return "Укажите заголовок новости.";
+    return "";
+  }
+
+  if (typeMeta.kind === "duty") {
+    if (!form.dutyTimeFrom) return "Укажите время начала дежурства.";
+    if (!form.dutyTimeTo) return "Укажите время окончания дежурства.";
     return "";
   }
 
@@ -1326,7 +1513,7 @@ let _saveErrorShown = false;
 function saveData(key, value) {
   try { localStorage.setItem("prok_" + key, JSON.stringify(value)); } catch(e) {
     console.error("save error", e);
-    if (!_saveErrorShown) { _saveErrorShown = true; setTimeout(() => { _saveErrorShown = false; }, 10000); try { alert("Не удалось сохранить данные локально. Возможно, хранилище переполнено."); } catch {} }
+    if (!_saveErrorShown) { _saveErrorShown = true; setTimeout(() => { _saveErrorShown = false; }, 10000); try { showError("Не удалось сохранить данные локально. Возможно, хранилище переполнено."); } catch {} }
   }
 }
 
@@ -1396,6 +1583,8 @@ function mergeLegacyPositions(serverPositions, legacyPositions) {
   return { positions: base, mergedCount };
 }
 
+let __csrfToken = "";
+
 async function apiRequest(action, payload) {
   const options = {
     method: payload === undefined ? "GET" : "POST",
@@ -1404,11 +1593,17 @@ async function apiRequest(action, payload) {
   };
   if (payload !== undefined) {
     options.headers["Content-Type"] = "application/json";
+    if (__csrfToken) {
+      options.headers["X-CSRF-Token"] = __csrfToken;
+    }
     options.body = JSON.stringify(payload);
   }
   const response = await fetch(`${API_URL}?action=${encodeURIComponent(action)}`, options);
   const text = await response.text();
   const data = parseApiJsonResponse(response, text);
+  if (data.csrfToken) {
+    __csrfToken = data.csrfToken;
+  }
   if (!response.ok || data.ok === false) {
     throw new Error(data.error || `Server error (${response.status})`);
   }
@@ -1450,11 +1645,17 @@ async function apiRequestWithParams(action, params = {}, payload) {
   };
   if (payload !== undefined) {
     options.headers["Content-Type"] = "application/json";
+    if (__csrfToken) {
+      options.headers["X-CSRF-Token"] = __csrfToken;
+    }
     options.body = JSON.stringify(payload);
   }
   const response = await fetch(buildApiActionUrl(action, params), options);
   const text = await response.text();
   const data = parseApiJsonResponse(response, text);
+  if (data.csrfToken) {
+    __csrfToken = data.csrfToken;
+  }
   if (!response.ok || data.ok === false) {
     throw new Error(data.error || `Server error (${response.status})`);
   }
@@ -1590,8 +1791,8 @@ function canReviewRequest(currentUser, request, users) {
 function getAssignableRoles(currentUser) {
   if (!currentUser) return ["STAFF"];
   if (hasSystemAdminAccess(currentUser)) return MANAGED_ROLE_OPTIONS;
-  if (currentUser.role === "FEDERAL") return ["STAFF", "BOSS", "FEDERAL"];
-  if (currentUser.role === "BOSS") return ["STAFF", "BOSS"];
+  if (currentUser.role === "FEDERAL") return ["STAFF", "SENIOR_STAFF", "USP", "BOSS", "FEDERAL"];
+  if (currentUser.role === "BOSS") return ["STAFF", "SENIOR_STAFF", "BOSS"];
   return ["STAFF"];
 }
 
@@ -1860,6 +2061,7 @@ async function uploadEvidenceProof({ file }) {
   const response = await fetch(`${API_URL}?action=upload-evidence-proof`, {
     method: "POST",
     credentials: "same-origin",
+    headers: __csrfToken ? { "X-CSRF-Token": __csrfToken } : {},
     body: formData,
   });
 
@@ -1886,6 +2088,7 @@ async function uploadBonusPayoutProof({ bonusId, comment, file }) {
   const response = await fetch(`${API_URL}?action=upload-bonus-payout-proof`, {
     method: "POST",
     credentials: "same-origin",
+    headers: __csrfToken ? { "X-CSRF-Token": __csrfToken } : {},
     body: formData,
   });
 
@@ -1912,6 +2115,7 @@ async function uploadCheckReportFile({ checkId, reportId, file }) {
   const response = await fetch(buildApiActionUrl("checks.reports.upload"), {
     method: "POST",
     credentials: "same-origin",
+    headers: __csrfToken ? { "X-CSRF-Token": __csrfToken } : {},
     body: formData,
   });
 
@@ -1954,7 +2158,7 @@ const CHECK_REPORT_SECTIONS = [
 ];
 
 const INTERVIEW_SCORE_OPTIONS = [
-  { id: "incorrect", label: "Неверно", value: 0 },
+  { id: "incorrect", label: "Неверно", value: -1 },
   { id: "partial", label: "Частично верно", value: 0.5 },
   { id: "correct", label: "Верно", value: 1 },
 ];
@@ -2371,18 +2575,21 @@ function canFederalReviewReport(report, currentUser) {
 }
 
 /* ── Colors ── */
-const C = {
-  bg: "#04122b", bgCard: "#0a1b3d", bgSidebar: "#06152f", bgInput: "#0d285a",
-  border: "#174b98", borderHover: "#2d6bc0",
-  gold: "#023e8a", goldDark: "#012d66", goldLight: "#63a4ff",
-  crimson: "#0353a4", crimsonLight: "#4ea8de",
-  text: "#f2f7ff", textDim: "#c6d4eb", textMuted: "#8ea5c7",
-  accent: "#0077b6", accentLight: "#6bb7ff",
-  danger: "#b34739", dangerLight: "#f08b7b",
-  success: "#2f9e8f", warning: "#d69a2d", blue: "#1d70d1", blueLight: "#85c5ff",
-  overlay: "#010816c6", navHover: "#023e8a1a", rowHover: "#4ea8de12",
-  heroGlowPrimary: "#023e8a2b", heroGlowSecondary: "#4ea8de24", activeNav: "#023e8a30",
-};
+let C = { ...THEMES.dark };
+
+function applyTheme(themeName) {
+  const t = THEMES[themeName] || THEMES.dark;
+  Object.assign(C, t);
+  if (themeName === "light") {
+    document.body.classList.add("light-theme");
+    document.body.classList.remove("dark-theme");
+  } else {
+    document.body.classList.add("dark-theme");
+    document.body.classList.remove("light-theme");
+  }
+}
+
+applyTheme(getStoredTheme());
 
 const T = {
   meta: 13,
@@ -2407,7 +2614,7 @@ const S = {
   select: { width: "100%", padding: "12px 16px", background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: T.body, outline: "none", fontFamily: "inherit", boxSizing: "border-box" },
   textarea: { width: "100%", padding: "12px 16px", background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: T.body, outline: "none", fontFamily: "inherit", minHeight: 104, resize: "vertical", boxSizing: "border-box" },
   card: { background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: 28, marginBottom: 18 },
-  cardTitle: { fontSize: T.title, fontWeight: 700, color: C.gold, marginBottom: 16, letterSpacing: 0.6, fontFamily: F.heading },
+  cardTitle: { fontSize: T.title, fontWeight: 700, color: C.goldLight, marginBottom: 16, letterSpacing: 0.6, fontFamily: F.heading },
   table: { width: "100%", borderCollapse: "collapse", fontSize: T.body },
   th: { padding: "12px 14px", textAlign: "left", borderBottom: `1px solid ${C.border}`, color: C.gold, fontSize: T.meta, letterSpacing: 1, textTransform: "uppercase", fontWeight: 700 },
   td: { padding: "12px 14px", borderBottom: `1px solid ${C.border}`, color: C.textDim },
@@ -2437,11 +2644,24 @@ function btn(variant) {
 }
 
 /* ── Small components ── */
-function Modal({ children, onClose, maxWidth = 560, persistent = false }) {
+function Modal({ children, onClose, maxWidth = 560, persistent = false, title = "" }) {
+  const contentRef = useRef(null);
+  useEffect(() => {
+    if (contentRef.current) {
+      const first = contentRef.current.querySelector("input, select, textarea, button:not([aria-label='Закрыть'])");
+      if (first) setTimeout(() => first.focus(), 50);
+    }
+  }, []);
+  useEffect(() => {
+    if (!onClose) return;
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
   return (
-    <div style={{ position: "fixed", inset: 0, background: C.overlay, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
-      <div className="fade-in modal-content" style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12, padding: 32, width: "92%", maxWidth, maxHeight: "85vh", overflowY: "auto", boxShadow: `0 24px 60px ${C.overlay}`, position: "relative" }} onClick={e => e.stopPropagation()}>
-        {onClose && <button onClick={onClose} style={{ position: "absolute", top: 12, right: 12, background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", padding: "4px 8px", lineHeight: 1, zIndex: 1 }}>✕</button>}
+    <div role="dialog" aria-modal="true" aria-label={title || "\u0414\u0438\u0430\u043B\u043E\u0433"} style={{ position: "fixed", inset: 0, background: C.overlay, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }} onClick={persistent ? undefined : onClose}>
+      <div ref={contentRef} className="fade-in modal-content" style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12, padding: 32, width: "92%", maxWidth, maxHeight: "85vh", overflowY: "auto", boxShadow: `0 24px 60px ${C.overlay}`, position: "relative" }} onClick={e => e.stopPropagation()}>
+        {onClose && <button onClick={onClose} aria-label="\u0417\u0430\u043A\u0440\u044B\u0442\u044C" style={{ position: "absolute", top: 12, right: 12, background: "none", border: "none", color: C.textMuted, fontSize: 22, cursor: "pointer", padding: "4px 8px", lineHeight: 1, zIndex: 1 }}>✕</button>}
         {children}
       </div>
     </div>
@@ -2498,8 +2718,58 @@ function ProgressBar({ value, max = 100, color }) {
   );
 }
 
+/* ═══════════════ CHART.JS INTEGRATION ═══════════════ */
+const CHART_THEME = {
+  textColor: "#c6d4eb",
+  gridColor: "#174b9840",
+  tooltipBg: "#0a1b3d",
+  tooltipText: "#f2f7ff",
+  subjectColors: ["#5bc0eb", "#63a4ff", "#2f9e8f", "#d69a2d", "#6bb7ff"],
+  font: { family: "'PT Sans', sans-serif" },
+};
+if (typeof Chart !== "undefined") {
+  Chart.defaults.color = CHART_THEME.textColor;
+  Chart.defaults.font.family = CHART_THEME.font.family;
+  Chart.defaults.plugins.tooltip.backgroundColor = CHART_THEME.tooltipBg;
+  Chart.defaults.plugins.tooltip.titleColor = CHART_THEME.tooltipText;
+  Chart.defaults.plugins.tooltip.bodyColor = CHART_THEME.tooltipText;
+}
+const CHART_BASE_OPTIONS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { labels: { color: CHART_THEME.textColor, padding: 12, font: { size: 12 } } } },
+  scales: {
+    x: { ticks: { color: CHART_THEME.textColor }, grid: { color: CHART_THEME.gridColor } },
+    y: { ticks: { color: CHART_THEME.textColor }, grid: { color: CHART_THEME.gridColor } },
+  },
+};
+
+function ChartCanvas({ type, data, options, height = 300 }) {
+  const canvasRef = React.useRef(null);
+  const chartRef = React.useRef(null);
+  const containerRef = React.useRef(null);
+  const [effectiveHeight, setEffectiveHeight] = React.useState(height);
+  const dataJson = JSON.stringify(data);
+  React.useEffect(() => {
+    const updateHeight = () => {
+      const w = window.innerWidth;
+      setEffectiveHeight(w < 480 ? Math.min(height, 200) : w < 768 ? Math.min(height, 250) : height);
+    };
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    return () => window.removeEventListener("resize", updateHeight);
+  }, [height]);
+  React.useEffect(() => {
+    if (chartRef.current) chartRef.current.destroy();
+    const ctx = canvasRef.current.getContext("2d");
+    chartRef.current = new Chart(ctx, { type, data: JSON.parse(dataJson), options });
+    return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
+  }, [type, dataJson]);
+  return <div ref={containerRef} style={{ position: "relative", height: effectiveHeight }}><canvas ref={canvasRef} /></div>;
+}
+
 function RoleBadge({ role }) {
-  const map = { STAFF: C.blue, BOSS: C.accentLight, FEDERAL: C.gold, ADMIN: C.crimsonLight };
+  const map = { STAFF: C.blue, SENIOR_STAFF: C.accentLight, USP: C.warning, BOSS: C.accentLight, FEDERAL: C.gold, ADMIN: C.crimsonLight };
   return <span style={badge(map[role] || C.textDim)}>{role}</span>;
 }
 
@@ -4148,6 +4418,42 @@ function HomeMonthCalendarCard({ user, checksMeta, onNavigate }) {
 }
 
 /* ═══════════════ AUTH SCREEN ═══════════════ */
+function PasswordStrengthBar({ password }) {
+  const len = (password || "").length;
+  const score = len === 0 ? 0 : len < 4 ? 1 : len < 6 ? 2 : len < 8 ? 3 : 4;
+  const labels = ["", "Слабый", "Средний", "Хороший", "Надёжный"];
+  const colors = ["", C.danger, C.warning, C.blue, C.success];
+  if (score === 0) return null;
+  return (
+    <div style={{ marginTop: 6 }}>
+      <div style={{ display: "flex", gap: 3, marginBottom: 4 }}>
+        {[1,2,3,4].map(i => (
+          <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i <= score ? colors[score] : C.bgInput, transition: "background 0.3s" }} />
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: colors[score] }}>{labels[score]}</div>
+    </div>
+  );
+}
+
+function UserAvatar({ user, size = 44 }) {
+  const initials = ((user?.surname || "")[0] || "") + ((user?.name || "")[0] || "");
+  const hash = (user?.id || "").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  const hue = hash % 360;
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: "50%",
+      background: `hsl(${hue}, 45%, 35%)`,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: size * 0.38, fontWeight: 700, color: "#fff",
+      flexShrink: 0, letterSpacing: 0.5, textTransform: "uppercase",
+      border: `2px solid hsl(${hue}, 45%, 50%)`,
+    }}>
+      {initials || "?"}
+    </div>
+  );
+}
+
 function AuthScreen({ onAuth, positions, bonusSettings }) {
   const [mode, setMode] = useState("login");
   const registrationPositions = Object.entries(positions || {}).flatMap(([role, items]) => (
@@ -4207,7 +4513,7 @@ function AuthScreen({ onAuth, positions, bonusSettings }) {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: F.body, color: C.text }}>
       <div style={{ position: "absolute", inset: 0, background: `radial-gradient(ellipse at 30% 20%, ${C.heroGlowPrimary} 0%, transparent 60%), radial-gradient(ellipse at 70% 80%, ${C.heroGlowSecondary} 0%, transparent 60%)` }} />
-      <div className="fade-in" style={{ position: "relative", zIndex: 1, width: 430 }}>
+      <div className="fade-in" style={{ position: "relative", zIndex: 1, width: 430, maxWidth: "94vw", padding: "0 8px" }}>
         <div style={{ textAlign: "center", marginBottom: 36 }}>
           <img
             src="Group_13388_1.png"
@@ -4248,7 +4554,8 @@ function AuthScreen({ onAuth, positions, bonusSettings }) {
                 placeholder={mode === "login" ? "••••" : "Придумайте пароль"}
                 onKeyDown={e => e.key === "Enter" && !busy && (mode === "login" ? handleLogin() : handleRegister())}
               />
-              {mode === "register" && <div style={{ fontSize: T.meta, color: C.textMuted, marginTop: 6 }}>Минимум 4 символа.</div>}
+              {mode === "register" && <PasswordStrengthBar password={form.password} />}
+              {mode === "register" && <div style={{ fontSize: T.meta, color: C.textMuted, marginTop: 4 }}>Минимум 4 символа.</div>}
             </div>
             {mode === "register" && (
               <div><label style={S.label}>Субъект</label>
@@ -4506,6 +4813,16 @@ function PagePilotCabinet({ user, sessionUser, users, activityEvents, performanc
                 <div style={{ fontSize: T.bodyStrong, color: C.text, marginTop: 8, fontWeight: 700 }}>{profile.classRankTitle}</div>
               </div>
             </div>
+            <div className="cabinet-medals-block" style={{ marginTop: 16, background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px" }}>
+              <div style={{ fontSize: T.meta, color: C.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Медали</div>
+              {profile.medalTitles.length ? (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {profile.medalTitles.map(title => <span key={title} style={{ ...badge(C.gold), textTransform: "none", letterSpacing: 0.3 }}>{title}</span>)}
+                </div>
+              ) : (
+                <div style={{ fontSize: T.body, color: C.textMuted }}>Награды пока не назначены.</div>
+              )}
+            </div>
           </div>
 
           <div style={{ flex: "0 1 340px", minWidth: 280, background: `${reviewStatus.color}12`, border: `1px solid ${reviewStatus.color}55`, borderRadius: 12, padding: 22 }}>
@@ -4634,14 +4951,20 @@ function PageMyCabinet({ user, sessionUser, users, registrationRequests, reports
 
   return (
     <div className="fade-in">
+      {typeof OnboardingBanner === "function" && <OnboardingBanner user={user} />}
       <h1 className="resp-page-title" style={S.pageTitle}>Мой кабинет</h1>
       <p style={S.pageSubtitle}>Персональная рабочая сводка по профилю, задачам и последним событиям</p>
 
       <div className="resp-card" style={{ ...S.card, padding: 32, background: `linear-gradient(135deg, ${C.bgCard} 0%, ${C.bgSidebar} 52%, ${C.bgInput} 100%)` }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "stretch", justifyContent: "space-between" }}>
           <div style={{ flex: "1 1 420px", minWidth: 280 }}>
-            <div style={{ fontSize: T.meta, color: C.goldLight, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 10 }}>Персональный профиль</div>
-            <div style={{ fontSize: T.page, color: C.text, fontWeight: 700, fontFamily: F.heading, lineHeight: 1.1 }}>{profile.fullName}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
+              <UserAvatar user={user} size={56} />
+              <div>
+                <div style={{ fontSize: T.meta, color: C.goldLight, letterSpacing: 1.4, textTransform: "uppercase" }}>Персональный профиль</div>
+                <div style={{ fontSize: T.page, color: C.text, fontWeight: 700, fontFamily: F.heading, lineHeight: 1.1 }}>{profile.fullName}</div>
+              </div>
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
               <RoleBadge role={user.role} />
               <span style={{ ...badge(C.blueLight), textTransform: "none", letterSpacing: 0.4 }}>{profile.positionTitle}</span>
@@ -4754,6 +5077,7 @@ function PageMyCabinet({ user, sessionUser, users, registrationRequests, reports
 /* ═══════════════ PAGE: MY REPORT ═══════════════ */
 function PagePilotActivityJournal({ user, users, activityEvents, setActivityEvents, factions, activitySettings, addAudit }) {
   const isFederalOrAdmin = user.role === "FEDERAL" || hasSystemAdminAccess(user);
+  const isUSP = user.role === "USP";
   const canDelete = canDeleteActivityEvent(user);
   const pilotSubjects = activitySettings?.pilotSubjects || DEFAULT_ACTIVITY_SETTINGS.pilotSubjects;
   const currentPeriodKey = getReportPeriodKey(new Date());
@@ -4821,8 +5145,8 @@ function PagePilotActivityJournal({ user, users, activityEvents, setActivityEven
     resetForm();
   };
 
-  const deleteEvent = (eventId) => {
-    if (!window.confirm("Удалить эту запись из журнала?")) return;
+  const deleteEvent = async (eventId) => {
+    const confirmed = await showConfirm("Удалить эту запись из журнала?", { danger: true, confirmLabel: "Удалить" }); if (!confirmed) return;
     const event = activityEvents.find(e => e.id === eventId);
     if (event) {
       setActivityEvents(activityEvents.filter(e => e.id !== eventId));
@@ -4885,7 +5209,7 @@ function PagePilotActivityJournal({ user, users, activityEvents, setActivityEven
           </div>
         </div>
 
-        {typeMeta.kind === "person" ? (
+        {typeMeta.kind === "person" && (
           <div className="resp-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14, marginTop: 16 }}>
             <div><label style={S.label}>ФИО</label><input style={S.input} value={form.targetFullName} onChange={e => updateForm("targetFullName", e.target.value)} placeholder="Фамилия Имя Отчество" /></div>
             <div><label style={S.label}>ID</label><input style={S.input} value={form.targetId} onChange={e => updateForm("targetId", formatTargetIdInput(e.target.value))} placeholder="000-000" maxLength={7} />{form.targetId && !isValidTargetId(form.targetId) && <div style={{ color: C.warning, fontSize: T.meta, marginTop: 4 }}>Формат: 000-000 или 00-000</div>}</div>
@@ -4901,7 +5225,8 @@ function PagePilotActivityJournal({ user, users, activityEvents, setActivityEven
             {form.type === "disciplinary" && <div style={{ gridColumn: "1 / -1" }}><label style={S.label}>Вид дисциплинарного взыскания</label><input style={S.input} value={form.measureLabel} onChange={e => updateForm("measureLabel", e.target.value)} placeholder="Например: строгий выговор" /></div>}
             {form.type === "warning" && <label style={{ display: "flex", alignItems: "center", gap: 10, color: C.text, fontSize: T.body, gridColumn: "1 / -1" }}><input type="checkbox" checked={form.includeInDossier !== false} onChange={e => updateForm("includeInDossier", e.target.checked)} />Вносить предупреждение в постоянное личное дело</label>}
           </div>
-        ) : (
+        )}
+        {typeMeta.kind === "visit" && (
           <div className="resp-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14, marginTop: 16 }}>
             <div style={{ gridColumn: "1 / -1" }}><label style={S.label}>Тема мероприятия</label><input style={S.input} value={form.topic} onChange={e => updateForm("topic", e.target.value)} placeholder="Тема лекции или визита" /></div>
             <div style={{ gridColumn: "1 / -1" }}>
@@ -4916,6 +5241,29 @@ function PagePilotActivityJournal({ user, users, activityEvents, setActivityEven
               </div>
             </div>
             <div style={{ gridColumn: "1 / -1" }}><label style={S.label}>Описание / цель</label><textarea style={S.textarea} value={form.description} onChange={e => updateForm("description", e.target.value)} placeholder="Что проводили, для кого и с какой целью" /></div>
+          </div>
+        )}
+        {typeMeta.kind === "news" && (
+          <div className="resp-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14, marginTop: 16 }}>
+            <div><label style={S.label}>Заголовок новости</label><input style={S.input} value={form.headline} onChange={e => updateForm("headline", e.target.value)} placeholder="Заголовок" /></div>
+            <div><label style={S.label}>Текст новости</label><textarea style={{ ...S.textarea, minHeight: 100 }} value={form.newsBody} onChange={e => updateForm("newsBody", e.target.value)} placeholder="Содержание новости" /></div>
+          </div>
+        )}
+        {typeMeta.kind === "duty" && (
+          <div className="resp-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginTop: 16 }}>
+            <div><label style={S.label}>Время начала дежурства</label><input type="time" style={S.input} value={form.dutyTimeFrom} onChange={e => updateForm("dutyTimeFrom", e.target.value)} /></div>
+            <div><label style={S.label}>Время окончания дежурства</label><input type="time" style={S.input} value={form.dutyTimeTo} onChange={e => updateForm("dutyTimeTo", e.target.value)} /></div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={S.label}>Скриншот начала дежурства</label>
+              {form.screenshotStart && <div style={{ marginBottom: 6 }}><a href={form.screenshotStart} target="_blank" rel="noopener"><img src={form.screenshotStart} alt="Начало" style={{ maxWidth: 200, maxHeight: 120, borderRadius: 8, border: `1px solid ${C.border}` }} /></a><button style={{ marginLeft: 8, background: "none", border: "none", color: C.danger, cursor: "pointer", fontSize: 14 }} onClick={() => updateForm("screenshotStart", "")}>✕</button></div>}
+              <EvidenceProofInput label="" value={form.screenshotStart} onChange={v => updateForm("screenshotStart", v)} placeholder="Ссылка или загрузите скриншот начала" />
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={S.label}>Скриншот окончания дежурства</label>
+              {form.screenshotEnd && <div style={{ marginBottom: 6 }}><a href={form.screenshotEnd} target="_blank" rel="noopener"><img src={form.screenshotEnd} alt="Конец" style={{ maxWidth: 200, maxHeight: 120, borderRadius: 8, border: `1px solid ${C.border}` }} /></a><button style={{ marginLeft: 8, background: "none", border: "none", color: C.danger, cursor: "pointer", fontSize: 14 }} onClick={() => updateForm("screenshotEnd", "")}>✕</button></div>}
+              <EvidenceProofInput label="" value={form.screenshotEnd} onChange={v => updateForm("screenshotEnd", v)} placeholder="Ссылка или загрузите скриншот окончания" />
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}><label style={S.label}>Описание / комментарий</label><textarea style={S.textarea} value={form.dutyDescription} onChange={e => updateForm("dutyDescription", e.target.value)} placeholder="Что происходило во время дежурства (необязательно)" /></div>
           </div>
         )}
 
@@ -4988,7 +5336,7 @@ function PagePilotActivityJournal({ user, users, activityEvents, setActivityEven
 }
 
 function PageMyReport({ user, users, reports, setReports, criteria, bonusSettings, addAudit, activityEvents, setActivityEvents, factions, activitySettings }) {
-  if (isPilotUser(user, activitySettings) || user.role === "FEDERAL" || hasSystemAdminAccess(user)) {
+  if (isPilotUser(user, activitySettings) || user.role === "FEDERAL" || user.role === "USP" || hasSystemAdminAccess(user)) {
     return <PagePilotActivityJournal user={user} users={users} activityEvents={activityEvents} setActivityEvents={setActivityEvents} factions={factions} activitySettings={activitySettings} addAudit={addAudit} />;
   }
   const [form, setForm] = useState({});
@@ -5685,6 +6033,8 @@ const CALENDAR_CATEGORIES = {
   deadline: { label: "Дедлайн",   color: "#d69a2d" },
   personal: { label: "Личное",    color: "#2f9e8f" },
   official: { label: "Служебное", color: "#0077b6" },
+  news:     { label: "Новости",   color: "#4ea8de" },
+  duty:     { label: "Дежурство", color: "#e67e22" },
   other:    { label: "Другое",    color: "#8ea5c7" },
 };
 
@@ -5769,7 +6119,7 @@ function ChecksAwareCalendar({ events: propEvents, user, users: allUsers, onRefr
   };
 
   const handleDelete = async (entityId) => {
-    if (!window.confirm("Удалить событие?")) return;
+    const confirmed = await showConfirm("Удалить событие?", { danger: true, confirmLabel: "Удалить" }); if (!confirmed) return;
     setBusy(true);
     try {
       await apiRequest("checks.calendar.delete", { entityId });
@@ -5815,14 +6165,14 @@ function ChecksAwareCalendar({ events: propEvents, user, users: allUsers, onRefr
         </div>
 
         {/* Weekday headers */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+        <div className="calendar-grid" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
           {HOME_CALENDAR_WEEKDAYS.map(d => (
             <div key={d} style={{ padding: "8px 4px", textAlign: "center", fontSize: T.meta, color: C.textMuted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, borderBottom: `1px solid ${C.border}` }}>{d}</div>
           ))}
         </div>
 
         {/* Day grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+        <div className="calendar-grid" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
           {calendar.cells.map(cell => {
             if (!cell.day) return <div key={cell.key} style={{ minHeight: 90, background: C.bg, borderBottom: `1px solid ${C.border}05` }} />;
             const cellEvents = eventMap.get(cell.dateKey) || [];
@@ -5878,6 +6228,8 @@ function ChecksAwareCalendar({ events: propEvents, user, users: allUsers, onRefr
                   <div style={{ fontSize: T.meta, color: C.textMuted, marginTop: 4 }}>
                     {formatTime(ev.startsAt)}{ev.endsAt ? ` — ${formatTime(ev.endsAt)}` : ""}
                     {ev.description ? ` · ${ev.description.slice(0, 80)}` : ""}
+                    {ev.targetUserId && (() => { const tu = (allUsers || []).find(u => u.id === ev.targetUserId); return tu ? ` · 👤 ${(tu.surname || "")} ${(tu.name || "")}` : ""; })()}
+                    {ev.creatorUserId && (() => { const cu = (allUsers || []).find(u => u.id === ev.creatorUserId); return cu ? ` · ✏️ ${(cu.surname || "")} ${(cu.name || "")}` : ""; })()}
                   </div>
                 </div>
               ))}
@@ -5898,6 +6250,14 @@ function ChecksAwareCalendar({ events: propEvents, user, users: allUsers, onRefr
             {selectedEvent.endsAt && <div><span style={{ color: C.textMuted, fontSize: T.meta }}>ОКОНЧАНИЕ</span><div style={{ color: C.text }}>{formatDateTime(selectedEvent.endsAt)}</div></div>}
             {selectedEvent.description && <div><span style={{ color: C.textMuted, fontSize: T.meta }}>ОПИСАНИЕ</span><div style={{ color: C.textDim }}>{selectedEvent.description}</div></div>}
             {selectedEvent.statusLabel && <div><span style={{ color: C.textMuted, fontSize: T.meta }}>СТАТУС</span><div style={{ color: C.textDim }}>{selectedEvent.statusLabel}</div></div>}
+            {selectedEvent.targetUserId && selectedEvent.entityType === "manual" && (() => {
+              const targetU = (allUsers || []).find(u => u.id === selectedEvent.targetUserId);
+              return targetU ? <div><span style={{ color: C.textMuted, fontSize: T.meta }}>НАЗНАЧЕН</span><div style={{ color: C.text }}>{(targetU.surname || "") + " " + (targetU.name || "")}</div></div> : null;
+            })()}
+            {selectedEvent.creatorUserId && (() => {
+              const creatorU = (allUsers || []).find(u => u.id === selectedEvent.creatorUserId);
+              return creatorU ? <div><span style={{ color: C.textMuted, fontSize: T.meta }}>СОЗДАЛ</span><div style={{ color: C.text }}>{(creatorU.surname || "") + " " + (creatorU.name || "")}</div></div> : null;
+            })()}
             {selectedEvent.visibility && selectedEvent.entityType === "manual" && (
               <div><span style={{ color: C.textMuted, fontSize: T.meta }}>ВИДИМОСТЬ</span><div style={{ color: C.textDim }}>{selectedEvent.visibility === "private" ? "Только мне" : selectedEvent.visibility === "subject" ? "Субъекту" : "Всем"}</div></div>
             )}
@@ -6395,9 +6755,9 @@ function PagePilotFactionsSummary({ user, sessionUser, users, activityEvents, se
       .filter(event => !detailFilters.authorUserId || event.authorUserId === detailFilters.authorUserId);
   }, [activityEvents, selectedFactionId, selectedPerson, activitySettings, periodKey, detailFilters]);
 
-  const deleteEvent = useCallback((event) => {
+  const deleteEvent = useCallback(async (event) => {
     if (!canDeleteEvents) return;
-    if (!window.confirm("Удалить событие из сводки фракций?")) return;
+    const confirmed = await showConfirm("Удалить событие из сводки фракций?", { danger: true, confirmLabel: "Удалить" }); if (!confirmed) return;
     setActivityEvents(activityEvents.filter(item => item.id !== event.id));
     addAudit(`Событие деятельности удалено: ${getActivityEventTitle(event, factions, activitySettings)}`, deleteActor?.id || user.id);
     setSelectedPerson(current => (current && String(current.targetId || "") === String(event?.personRecord?.targetId || "") ? null : current));
@@ -6640,9 +7000,9 @@ function PagePilotAnalytics({ user, users, reports, bonuses, activityEvents, set
   const [dossierEditError, setDossierEditError] = useState("");
 
   const canDeleteEvents = canDeleteActivityEvent(user);
-  const deleteAnalyticsEvent = useCallback((event) => {
+  const deleteAnalyticsEvent = useCallback(async (event) => {
     if (!canDeleteEvents) return;
-    if (!window.confirm("Удалить эту запись из журнала?")) return;
+    const confirmed = await showConfirm("Удалить эту запись из журнала?", { danger: true, confirmLabel: "Удалить" }); if (!confirmed) return;
     setActivityEvents(prev => (Array.isArray(prev) ? prev : []).filter(item => item.id !== event.id));
     if (typeof addAudit === "function") addAudit(`Событие деятельности удалено: ${getActivityEventTitle(event, factions, activitySettings)}`, user.id);
     setSelectedPerson(current => (current && String(current.targetId || "") === String(event?.personRecord?.targetId || "") ? null : current));
@@ -6672,7 +7032,7 @@ function PagePilotAnalytics({ user, users, reports, bonuses, activityEvents, set
     setDossierEditForm(null);
     setDossierEditError("");
   }, [dossierEditEvent, dossierEditForm, user, activitySettings, factions, setActivityEvents, addAudit]);
-  const subjectScope = user?.role === "BOSS" ? [user.subject] : (subjectFilter ? [subjectFilter] : availableSubjects);
+  const subjectScope = (user?.role === "BOSS" || user?.role === "USP") ? [user.subject] : (subjectFilter ? [subjectFilter] : availableSubjects);
 
   useEffect(() => {
     if (!availableSubjects.length) return;
@@ -6793,7 +7153,7 @@ function PagePilotAnalytics({ user, users, reports, bonuses, activityEvents, set
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
           <div style={S.cardTitle}>Фракции и дисциплинарная картина</div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            {user?.role !== "BOSS" && availableSubjects.length > 1 && (
+            {user?.role !== "BOSS" && user?.role !== "USP" && availableSubjects.length > 1 && (
               <select style={{ ...S.select, width: 220 }} value={subjectFilter} onChange={e => setSubjectFilter(e.target.value)}>
                 {availableSubjects.map(subject => <option key={subject} value={subject}>{subject}</option>)}
               </select>
@@ -6821,13 +7181,68 @@ function PagePilotAnalytics({ user, users, reports, bonuses, activityEvents, set
         </div>
       </div>
 
-      <div className="resp-card" style={{ ...S.card, marginBottom: 18 }}>
-        <div style={S.cardTitle}>Динамика по месяцам</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {dynamics.map(item => <div key={item.periodKey} style={{ padding: "12px 14px", background: C.bgInput, borderRadius: 10, border: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><div style={{ color: C.text }}>{item.label}</div><div style={{ color: C.textMuted }}>Событий: {item.totalEvents} • Закрытых дел: {item.closedCases}</div></div>)}
-        </div>
-      </div>
-
+      {/* ═══ CHARTS SECTION ═══ */}
+      {typeof Chart !== "undefined" && (() => {
+        const chartCard = { ...S.card, flex: "1 1 480px", minWidth: 0 };
+        const doughnutOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "right", labels: { color: CHART_THEME.textColor, padding: 10, font: { size: 11 }, boxWidth: 14 } } } };
+        // Dynamics line chart data
+        const dynamicsLineData = {
+          labels: dynamics.map(d => d.label),
+          datasets: [
+            { label: "Событий", data: dynamics.map(d => d.totalEvents), borderColor: "#5bc0eb", backgroundColor: "#5bc0eb33", tension: 0.3, fill: true, pointRadius: 4 },
+            { label: "Закрытых дел", data: dynamics.map(d => d.closedCases), borderColor: "#2f9e8f", backgroundColor: "#2f9e8f33", tension: 0.3, fill: true, pointRadius: 4 },
+          ],
+        };
+        // By type doughnut data
+        const typeFiltered = byType.filter(t => t.count > 0);
+        const typeDoughnutData = typeFiltered.length > 0 ? {
+          labels: typeFiltered.map(t => t.label),
+          datasets: [{ data: typeFiltered.map(t => t.count), backgroundColor: typeFiltered.map(t => t.color || "#8ea5c7"), borderWidth: 0, hoverOffset: 6 }],
+        } : null;
+        // Factions bar data (top 10 by events)
+        const topFactions = [...factionStats].sort((a, b) => b.totalEvents - a.totalEvents).slice(0, 10);
+        const factionBarData = topFactions.length > 0 ? {
+          labels: topFactions.map(f => f.faction.name.length > 16 ? f.faction.name.slice(0, 14) + "…" : f.faction.name),
+          datasets: [
+            { label: "Событий", data: topFactions.map(f => f.totalEvents), backgroundColor: "#5bc0eb", borderRadius: 4 },
+            { label: "Фигурантов", data: topFactions.map(f => f.uniquePersons), backgroundColor: "#d69a2d", borderRadius: 4 },
+            { label: "Визитов", data: topFactions.map(f => f.visits), backgroundColor: "#2f9e8f", borderRadius: 4 },
+          ],
+        } : null;
+        // Employees bar data (top 10 by closed cases)
+        const topEmployees = [...employeeRows].sort((a, b) => b.metrics.closedCases - a.metrics.closedCases).slice(0, 10).filter(e => e.metrics.closedCases > 0 || e.metrics.events > 0);
+        const employeeBarData = topEmployees.length > 0 ? {
+          labels: topEmployees.map(e => getUserFullName(e.user)),
+          datasets: [
+            { label: "Закрытых дел", data: topEmployees.map(e => e.metrics.closedCases), backgroundColor: "#2f9e8f", borderRadius: 4 },
+            { label: "Событий", data: topEmployees.map(e => e.metrics.events), backgroundColor: "#63a4ff", borderRadius: 4 },
+          ],
+        } : null;
+        return (
+          <>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 18, marginBottom: 18 }}>
+              <div className="resp-card" style={chartCard}>
+                <div style={S.cardTitle}>Динамика по месяцам</div>
+                <ChartCanvas type="line" data={dynamicsLineData} options={CHART_BASE_OPTIONS} height={300} />
+              </div>
+              <div className="resp-card" style={chartCard}>
+                <div style={S.cardTitle}>Распределение по типам</div>
+                {typeDoughnutData ? <ChartCanvas type="doughnut" data={typeDoughnutData} options={doughnutOpts} height={300} /> : <div style={{ color: C.textMuted, padding: 20 }}>Нет данных</div>}
+              </div>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 18, marginBottom: 18 }}>
+              <div className="resp-card" style={chartCard}>
+                <div style={S.cardTitle}>Топ-10 фракций по событиям</div>
+                {factionBarData ? <ChartCanvas type="bar" data={factionBarData} options={CHART_BASE_OPTIONS} height={300} /> : <div style={{ color: C.textMuted, padding: 20 }}>Нет данных</div>}
+              </div>
+              <div className="resp-card" style={chartCard}>
+                <div style={S.cardTitle}>Нагрузка сотрудников</div>
+                {employeeBarData ? <ChartCanvas type="bar" data={employeeBarData} options={{ ...CHART_BASE_OPTIONS, indexAxis: "y" }} height={300} /> : <div style={{ color: C.textMuted, padding: 20 }}>Нет данных</div>}
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {selectedFaction && (
         <Modal onClose={() => { setSelectedFactionId(""); setSelectedPerson(null); setSelectedEvidenceEvent(null); }} maxWidth={900}>
@@ -6950,7 +7365,28 @@ function PagePilotAnalytics({ user, users, reports, bonuses, activityEvents, set
   );
 }
 
-function PageAnalytics({ user, users, reports, bonuses, activityEvents, setActivityEvents, factions, activitySettings, addAudit }) {
+const ANALYTICS_STATUS_META = {
+  registered:                { label: "Зарегистрировано",          color: "#1d70d1" },
+  assigned_staff:            { label: "Назначен исполнитель",      color: "#0077b6" },
+  assigned_supervisor:       { label: "Назначен прокурор",         color: "#0353a4" },
+  preliminary_check:         { label: "Предварительная проверка",   color: "#d69a2d" },
+  check_terminated:          { label: "Проверка прекращена",       color: "#b34739" },
+  transferred_investigation: { label: "Передано в следствие",      color: "#c77c28" },
+  criminal_case_opened:      { label: "ВУД",                      color: "#2f9e8f" },
+  criminal_case_refused:     { label: "Отказ в ВУД",              color: "#b34739" },
+  prosecution_review:        { label: "На утверждении",            color: "#d69a2d" },
+  prosecution_approved:      { label: "Утверждено",                color: "#2f9e8f" },
+  prosecution_refused:       { label: "Отказ в утверждении",       color: "#b34739" },
+  sent_to_court:             { label: "Передано в суд",            color: "#023e8a" },
+  verdict_guilty:            { label: "Обвинительный приговор",    color: "#2f9e8f" },
+  verdict_partial:           { label: "Частичный приговор",        color: "#d69a2d" },
+  verdict_acquitted:         { label: "Оправдательный приговор",   color: "#b34739" },
+  completed:                 { label: "Завершено",                 color: "#2f9e8f" },
+  archive:                   { label: "Архив",                     color: "#8ea5c7" },
+};
+const MONTH_NAMES_SHORT = ["Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг","Сен","Окт","Ноя","Дек"];
+
+function PageAnalytics({ user, users, reports, bonuses, activityEvents, setActivityEvents, factions, activitySettings, addAudit, casesMeta }) {
   if (canViewPilotAnalytics(user, activitySettings)) {
     return <PagePilotAnalytics user={user} users={users} reports={reports} bonuses={bonuses} activityEvents={activityEvents} setActivityEvents={setActivityEvents} factions={factions} activitySettings={activitySettings} addAudit={addAudit} />;
   }
@@ -6968,11 +7404,168 @@ function PageAnalytics({ user, users, reports, bonuses, activityEvents, setActiv
   });
   const maxReports = Math.max(...bySubject.map(s => s.reports), 1);
 
+  // Cases analytics from API
+  const [casesAnalytics, setCasesAnalytics] = useState(null);
+  useEffect(() => {
+    apiRequest("cases.analytics", {}).then(r => { if (r.ok) setCasesAnalytics(r.data); }).catch(() => {});
+  }, []);
+
+  // Chart 1: Reports per subject (bar)
+  const reportsBarData = useMemo(() => ({
+    labels: bySubject.map(s => s.name),
+    datasets: [{
+      label: "Отчётов",
+      data: bySubject.map(s => s.reports),
+      backgroundColor: CHART_THEME.subjectColors.slice(0, bySubject.length),
+      borderRadius: 6,
+      barThickness: 28,
+    }],
+  }), [bySubject]);
+
+  // Chart 2: Cases by status (doughnut)
+  const statusDoughnutData = useMemo(() => {
+    if (!casesAnalytics?.byStatus) return null;
+    const entries = Object.entries(casesAnalytics.byStatus).filter(([, v]) => v > 0);
+    if (entries.length === 0) return null;
+    return {
+      labels: entries.map(([k]) => (ANALYTICS_STATUS_META[k]?.label || k)),
+      datasets: [{
+        data: entries.map(([, v]) => v),
+        backgroundColor: entries.map(([k]) => ANALYTICS_STATUS_META[k]?.color || "#8ea5c7"),
+        borderWidth: 0,
+        hoverOffset: 6,
+      }],
+    };
+  }, [casesAnalytics]);
+
+  // Chart 3: Monthly reports trend (line, 6 months)
+  const reportsTrendData = useMemo(() => {
+    const now = new Date();
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({ key: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`, label: MONTH_NAMES_SHORT[d.getMonth()] + " " + d.getFullYear() });
+    }
+    const datasets = subjectScope.map((sub, idx) => {
+      const subUsers = relevantUsers.filter(u => u.subject === sub);
+      const subReports = relevantReports.filter(r => subUsers.find(u => u.id === r.userId));
+      return {
+        label: sub,
+        data: months.map(m => subReports.filter(r => (r.date || "").slice(0, 7) === m.key).length),
+        borderColor: CHART_THEME.subjectColors[idx % CHART_THEME.subjectColors.length],
+        backgroundColor: CHART_THEME.subjectColors[idx % CHART_THEME.subjectColors.length] + "33",
+        tension: 0.3,
+        fill: false,
+        pointRadius: 4,
+      };
+    });
+    return { labels: months.map(m => m.label), datasets };
+  }, [relevantReports, relevantUsers, subjectScope]);
+
+  // Chart 4: Monthly bonuses trend (line, 6 months)
+  const bonusesTrendData = useMemo(() => {
+    const now = new Date();
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({ key: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`, label: MONTH_NAMES_SHORT[d.getMonth()] + " " + d.getFullYear() });
+    }
+    return {
+      labels: months.map(m => m.label),
+      datasets: [{
+        label: "Сумма премий (₽)",
+        data: months.map(m => relevantApprovedBonuses.filter(b => (b.date || "").slice(0, 7) === m.key).reduce((s, b) => s + (b.amount || 0), 0)),
+        borderColor: "#2f9e8f",
+        backgroundColor: "#2f9e8f33",
+        tension: 0.3,
+        fill: true,
+        pointRadius: 4,
+      }],
+    };
+  }, [relevantApprovedBonuses]);
+
+  // Chart 5: Cases by subject (grouped bar)
+  const casesSubjectData = useMemo(() => {
+    if (!casesAnalytics?.bySubject) return null;
+    const subs = subjectScope.filter(s => casesAnalytics.bySubject[s]);
+    if (subs.length === 0) return null;
+    return {
+      labels: subs,
+      datasets: [
+        { label: "Всего", data: subs.map(s => casesAnalytics.bySubject[s].total), backgroundColor: "#5bc0eb", borderRadius: 4 },
+        { label: "Активных", data: subs.map(s => casesAnalytics.bySubject[s].active), backgroundColor: "#d69a2d", borderRadius: 4 },
+        { label: "Просрочено", data: subs.map(s => casesAnalytics.bySubject[s].overdue), backgroundColor: "#b34739", borderRadius: 4 },
+      ],
+    };
+  }, [casesAnalytics, subjectScope]);
+
+  // Chart 6: Staff workload (horizontal bar, top 10)
+  const staffLoadData = useMemo(() => {
+    if (!casesAnalytics?.byStaff || casesAnalytics.byStaff.length === 0) return null;
+    const sorted = [...casesAnalytics.byStaff].sort((a, b) => b.assigned - a.assigned).slice(0, 10);
+    return {
+      labels: sorted.map(s => s.name),
+      datasets: [
+        { label: "Назначено", data: sorted.map(s => s.assigned), backgroundColor: "#63a4ff", borderRadius: 4 },
+        { label: "Завершено", data: sorted.map(s => s.completed), backgroundColor: "#2f9e8f", borderRadius: 4 },
+        { label: "Просрочено", data: sorted.map(s => s.overdue), backgroundColor: "#b34739", borderRadius: 4 },
+      ],
+    };
+  }, [casesAnalytics]);
+
+  const chartCardStyle = { ...S.card, flex: "1 1 480px", minWidth: 0 };
+  const doughnutOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "right", labels: { color: CHART_THEME.textColor, padding: 10, font: { size: 11 }, boxWidth: 14 } } } };
+  const horizontalBarOpts = { ...CHART_BASE_OPTIONS, indexAxis: "y" };
+
   return (
     <div className="fade-in">
       <h1 className="resp-page-title" style={S.pageTitle}>Аналитика</h1>
       <p style={S.pageSubtitle}>Сводные показатели по {isFederalView ? "всем субъектам" : user.subject}</p>
-      <div className="stat-row" style={{...S.row,marginBottom:16}}><StatBox value={relevantUsers.length} label="Сотрудников" /><StatBox value={relevantReports.length} label="Отчётов" color={C.blue} /><StatBox value={relevantApprovedBonuses.reduce((s,b)=>s+b.amount,0).toLocaleString()+"₽"} label="Выплачено премий" color={C.success} /></div>
+      <div className="stat-row" style={{...S.row,marginBottom:16}}>
+        <StatBox value={relevantUsers.length} label="Сотрудников" />
+        <StatBox value={relevantReports.length} label="Отчётов" color={C.blue} />
+        <StatBox value={relevantApprovedBonuses.reduce((s,b)=>s+b.amount,0).toLocaleString()+"₽"} label="Выплачено премий" color={C.success} />
+        {casesAnalytics && <StatBox value={casesAnalytics.total} label="Обращений" color={C.gold} />}
+        {casesAnalytics && <StatBox value={casesAnalytics.overdue} label="Просрочено" color={C.danger} />}
+      </div>
+
+      {/* Row 1: Reports bar + Cases doughnut */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 18, marginBottom: 18 }}>
+        <div className="resp-card" style={chartCardStyle}>
+          <div style={S.cardTitle}>Отчёты по субъектам</div>
+          <ChartCanvas type="bar" data={reportsBarData} options={{ ...CHART_BASE_OPTIONS, plugins: { ...CHART_BASE_OPTIONS.plugins, legend: { display: false } } }} height={300} />
+        </div>
+        <div className="resp-card" style={chartCardStyle}>
+          <div style={S.cardTitle}>Обращения по статусам</div>
+          {statusDoughnutData ? <ChartCanvas type="doughnut" data={statusDoughnutData} options={doughnutOpts} height={300} /> : <div style={{ color: C.textMuted, padding: 20 }}>Загрузка данных...</div>}
+        </div>
+      </div>
+
+      {/* Row 2: Reports trend + Bonuses trend */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 18, marginBottom: 18 }}>
+        <div className="resp-card" style={chartCardStyle}>
+          <div style={S.cardTitle}>Динамика отчётов (6 мес.)</div>
+          <ChartCanvas type="line" data={reportsTrendData} options={CHART_BASE_OPTIONS} height={300} />
+        </div>
+        <div className="resp-card" style={chartCardStyle}>
+          <div style={S.cardTitle}>Динамика премий (6 мес.)</div>
+          <ChartCanvas type="line" data={bonusesTrendData} options={{ ...CHART_BASE_OPTIONS, plugins: { ...CHART_BASE_OPTIONS.plugins, legend: { display: false } } }} height={300} />
+        </div>
+      </div>
+
+      {/* Row 3: Cases by subject + Staff workload */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 18, marginBottom: 18 }}>
+        <div className="resp-card" style={chartCardStyle}>
+          <div style={S.cardTitle}>Обращения по субъектам</div>
+          {casesSubjectData ? <ChartCanvas type="bar" data={casesSubjectData} options={CHART_BASE_OPTIONS} height={300} /> : <div style={{ color: C.textMuted, padding: 20 }}>Загрузка данных...</div>}
+        </div>
+        <div className="resp-card" style={chartCardStyle}>
+          <div style={S.cardTitle}>Нагрузка на сотрудников (топ-10)</div>
+          {staffLoadData ? <ChartCanvas type="bar" data={staffLoadData} options={horizontalBarOpts} height={300} /> : <div style={{ color: C.textMuted, padding: 20 }}>Загрузка данных...</div>}
+        </div>
+      </div>
+
+      {/* Existing subject breakdown table */}
       <div className="resp-card" style={S.card}><div style={S.cardTitle}>{isFederalView ? "Показатели по субъектам" : `Показатели по округу ${user.subject}`}</div>
         <div style={{display:"flex",flexDirection:"column",gap:16}}>{bySubject.map(sub=>(
           <div key={sub.name} style={{padding:16,background:C.bgInput,borderRadius:8}}>
@@ -7065,7 +7658,7 @@ function PageUsers({ currentUser, users, registrationRequests, setUsers, positio
     if (targetUser.isSystemAdmin && !canGrantSystemAdmin) return false;
     if (canEdit) return true;
     // BOSS может редактировать STAFF и BOSS своего субъекта (включая себя)
-    if (currentUser.role === "BOSS" && targetUser.subject === currentUser.subject && ["STAFF", "BOSS"].includes(targetUser.role)) return true;
+    if (currentUser.role === "BOSS" && targetUser.subject === currentUser.subject && ["STAFF", "SENIOR_STAFF", "BOSS"].includes(targetUser.role)) return true;
     return false;
   };
 
@@ -7110,10 +7703,12 @@ function PageUsers({ currentUser, users, registrationRequests, setUsers, positio
   const saveEdit=()=>{
     if(!editUser)return;
     const originalUser = users.find(u => u.id === editUser.id);
-    // BOSS не может менять роль, субъект, системные флаги
+    // BOSS может менять роль в пределах STAFF/SENIOR_STAFF/BOSS, но не субъект и системные флаги
+    const isBossEditor = currentUser.role === "BOSS";
+    const bossAllowedRoles = ["STAFF", "SENIOR_STAFF", "BOSS"];
     const safedEdit = !canEdit ? {
       ...editUser,
-      role: originalUser?.role,
+      role: isBossEditor && bossAllowedRoles.includes(editUser.role) ? editUser.role : originalUser?.role,
       subject: originalUser?.subject,
       isSystemAdmin: originalUser?.isSystemAdmin,
       isTester: originalUser?.isTester,
@@ -7225,7 +7820,7 @@ function PageUsers({ currentUser, users, registrationRequests, setUsers, positio
           <div style={{ fontSize: T.meta, color: C.textMuted, marginTop: 4 }}>После создания пользователя система выдаст 4 случайные цифры, например 1735.</div>
         </div>
         <div><label style={S.label}>Субъект</label><select style={S.select} value={form.subject} onChange={e=>set("subject",e.target.value)} disabled={assignableSubjects.length === 1}>{assignableSubjects.map(sub=><option key={sub} value={sub}>{sub}</option>)}</select></div>
-        <div><label style={S.label}>Должность</label><select style={S.select} value={form.positionId} onChange={e=>set("positionId",e.target.value)}>
+        <div><label style={S.label}>Должность</label><select style={S.select} value={form.positionId} onChange={e=>{const pid=e.target.value;const meta=addUserPositions.find(p=>p.id===pid);setForm(p=>({...p,positionId:pid,...(meta&&meta.role==="FEDERAL"?{subject:GENERAL_SUBJECT}:{})}));}}>
           <option value="">Выберите должность</option>
           {addUserPositions.map(position => <option key={position.id} value={position.id}>[{ROLE_LABELS[position.role]}] {position.title}</option>)}
         </select></div>
@@ -7254,8 +7849,8 @@ function PageUsers({ currentUser, users, registrationRequests, setUsers, positio
           </div>
           {passwordError && <div style={{fontSize:T.meta,color:C.dangerLight,marginTop:6}}>{passwordError}</div>}
         </div>
-        <div><label style={S.label}>Субъект</label><select style={S.select} value={editUser.subject} onChange={e=>setEditUser(p=>({...p,subject:e.target.value}))} disabled={!canEdit}>{SUBJECTS.map(sub=><option key={sub}>{sub}</option>)}<option value={GENERAL_SUBJECT}>{GENERAL_SUBJECT}</option></select></div>
-        <div><label style={S.label}>Роль</label><select style={S.select} value={editUser.role} onChange={e=>setEditUser(p=>({...p,role:e.target.value}))} disabled={!canEdit}>{canEdit ? <><option value="STAFF">STAFF</option><option value="BOSS">BOSS</option><option value="FEDERAL">FEDERAL</option>{currentUser.role==="ADMIN"&&<option value="ADMIN">ADMIN</option>}</> : <option value={editUser.role}>{editUser.role}</option>}</select></div>
+        <div><label style={S.label}>Субъект</label><select style={S.select} value={editUser.subject} onChange={e=>setEditUser(p=>({...p,subject:e.target.value}))} disabled={!canEdit}>{canEdit ? <>{SUBJECTS.map(sub=><option key={sub}>{sub}</option>)}<option value={GENERAL_SUBJECT}>{GENERAL_SUBJECT}</option></> : <option value={editUser.subject}>{editUser.subject}</option>}</select></div>
+        <div><label style={S.label}>Роль</label><select style={S.select} value={editUser.role} onChange={e=>setEditUser(p=>({...p,role:e.target.value}))} disabled={!canEdit && currentUser.role !== "BOSS"}>{canEdit ? <><option value="STAFF">STAFF</option><option value="SENIOR_STAFF">SENIOR_STAFF</option><option value="USP">USP</option><option value="BOSS">BOSS</option><option value="FEDERAL">FEDERAL</option>{currentUser.role==="ADMIN"&&<option value="ADMIN">ADMIN</option>}</> : currentUser.role === "BOSS" ? <><option value="STAFF">STAFF</option><option value="SENIOR_STAFF">SENIOR_STAFF</option><option value="BOSS">BOSS</option></> : <option value={editUser.role}>{editUser.role}</option>}</select></div>
         {canGrantSystemAdmin && <label style={{ display:"flex", alignItems:"center", gap:10, fontSize:T.body, color:C.text }}>
           <input type="checkbox" checked={!!editUser.isSystemAdmin} onChange={e=>setEditUser(p=>({...p,isSystemAdmin:e.target.checked}))} />
           Системный администратор
@@ -7264,7 +7859,7 @@ function PageUsers({ currentUser, users, registrationRequests, setUsers, positio
           <input type="checkbox" checked={!!editUser.isTester} onChange={e=>setEditUser(p=>({...p,isTester:e.target.checked}))} />
           Тестер
         </label>}
-        <div><label style={S.label}>Должность</label><select style={S.select} value={editUser.positionId||""} onChange={e=>setEditUser(p=>({...p,positionId:e.target.value}))}><option value="">Не назначена</option>{Object.entries(positions||{}).filter(([role])=>canEdit||assignableRoles.includes(role)).map(([role,posArr])=>posArr.map(p=><option key={p.id} value={p.id}>[{ROLE_LABELS[role]||role}] {p.title}</option>))}</select></div>
+        <div><label style={S.label}>Должность</label><select style={S.select} value={editUser.positionId||""} onChange={e=>{const pid=e.target.value;const meta=getPositionMetaById(positions,pid);setEditUser(p=>({...p,positionId:pid,...(meta?{role:meta.role,...(meta.role==="FEDERAL"?{subject:GENERAL_SUBJECT}:{})}:{})}));}}><option value="">Не назначена</option>{Object.entries(positions||{}).filter(([role])=>canEdit||assignableRoles.includes(role)).map(([role,posArr])=>posArr.map(p=><option key={p.id} value={p.id}>[{ROLE_LABELS[role]||role}] {p.title}</option>))}</select></div>
         <div><label style={S.label}>Классный чин</label><select style={S.select} value={editUser.classRankId||""} onChange={e=>setEditUser(p=>({...p,classRankId:e.target.value}))}><option value="">Не присвоен</option>{(classRanks||[]).map(rank=><option key={rank.id} value={rank.id}>{rank.title}</option>)}</select></div>
         <div><label style={S.label}>Медали</label>{(medals||[]).length ? <div style={{display:"flex",flexWrap:"wrap",gap:8}}>{medals.map(medal=>{const active=(editUser.medalIds||[]).includes(medal.id);return <button key={medal.id} type="button" className="btn-hover" style={{...btn(active?"gold":"ghost"),padding:"8px 12px"}} onClick={()=>toggleEditMedal(medal.id)}>{medal.title}</button>;})}</div> : <div style={{fontSize:T.body,color:C.textMuted}}>Список медалей пока пуст.</div>}</div>
         <div><label style={S.label}>ID сотрудника</label><input style={S.input} value={editUser.employeeId||""} onChange={e=>setEditUser(p=>({...p,employeeId:e.target.value.trim()}))} placeholder="Например: 12345" /><div style={{fontSize:T.meta,color:C.textMuted,marginTop:4}}>Уникальный идентификатор сотрудника в системе</div></div>
@@ -8695,11 +9290,24 @@ function PagePersonnelSummary({ currentUser, users, reports, bonuses, positions,
 /* ═══════════════ PAGE: ORDERS ═══════════════ */
 function PageNotifications({ notifications, onNavigate, onRefresh, refreshing, lastSyncAt, onDismiss }) {
   const summary = getNotificationSummary(notifications);
-  const sections = ["critical", "warning", "info"].map(priority => ({
-    priority,
-    meta: getNotificationPriorityMeta(priority),
-    items: (notifications || []).filter(item => item.priority === priority),
-  }));
+  const [dismissedIds, setDismissedIds] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("femida_notif_read") || "[]"); } catch { return []; }
+  });
+  const markRead = (id) => {
+    setDismissedIds(prev => {
+      const next = [...new Set([...prev, id])];
+      try { localStorage.setItem("femida_notif_read", JSON.stringify(next.slice(-200))); } catch {}
+      return next;
+    });
+  };
+  const allItems = useMemo(() => {
+    const ordered = ["critical", "warning", "info"];
+    return ordered.flatMap(priority => {
+      const meta = getNotificationPriorityMeta(priority);
+      return (notifications || []).filter(n => n.priority === priority).map(n => ({ ...n, meta, isRead: dismissedIds.includes(n.id) }));
+    });
+  }, [notifications, dismissedIds]);
+  const pg = usePagination(allItems, 15);
 
   return (
     <div className="fade-in">
@@ -8722,45 +9330,47 @@ function PageNotifications({ notifications, onNavigate, onRefresh, refreshing, l
         <StatBox value={summary.info} label="Информационных" color={C.blue} />
       </div>
 
-      {notifications.length === 0 ? (
-        <div className="resp-card" style={S.card}>
-          <div style={S.cardTitle}>Очередь пуста</div>
-          <div style={{ fontSize: T.body, color: C.textMuted }}>Сейчас нет уведомлений, требующих вашего внимания.</div>
-        </div>
+      {allItems.length === 0 ? (
+        typeof EmptyState === "function"
+          ? <EmptyState icon="🔔" title="Очередь пуста" description="Сейчас нет уведомлений, требующих вашего внимания." />
+          : <div className="resp-card" style={S.card}><div style={S.cardTitle}>Очередь пуста</div><div style={{ fontSize: T.body, color: C.textMuted }}>Сейчас нет уведомлений, требующих вашего внимания.</div></div>
       ) : (
-        sections.map(section => {
-          if (section.items.length === 0) return null;
-          return (
-            <div key={section.priority} style={S.card}>
-              <div style={{ ...S.cardTitle, color: section.meta.color }}>{section.meta.icon} {section.meta.label}</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {section.items.map(item => (
-                  <div key={item.id} style={{ background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <span style={badge(section.meta.color)}>{section.meta.label}</span>
-                        {item.scope && <span style={S.tag}>{item.scope}</span>}
-                      </div>
-                      <div style={{ fontSize: T.meta, color: C.textMuted }}>{item.date ? formatDateTime(item.date) : "Без даты"}</div>
-                    </div>
-                    <div style={{ fontSize: T.bodyStrong, color: C.text, fontWeight: 700, marginBottom: 8 }}>{item.title}</div>
-                    <div style={{ fontSize: T.body, color: C.textDim, lineHeight: 1.55 }}>{item.text}</div>
-                    <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-                      <button className="btn-hover" style={btn("ghost")} onClick={() => onNavigate(item.actionId)}>
-                        {item.actionLabel || "Открыть"}
-                      </button>
-                      {onDismiss ? (
-                        <button className="btn-hover" style={btn("subtle")} onClick={() => onDismiss(item.id)}>
-                          Ознакомлен
-                        </button>
-                      ) : null}
-                    </div>
+        <div style={S.card}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {pg.paged.map(item => (
+              <div key={item.id} style={{
+                background: item.isRead ? C.bgCard : C.bgInput,
+                border: `1px solid ${item.isRead ? C.border + "66" : C.border}`,
+                borderRadius: 12, padding: 18,
+                borderLeft: `4px solid ${item.meta.color}`,
+                opacity: item.isRead ? 0.7 : 1,
+                transition: "opacity 0.3s",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={badge(item.meta.color)}>{item.meta.label}</span>
+                    {!item.isRead && <span style={{ width: 8, height: 8, borderRadius: "50%", background: item.meta.color, display: "inline-block" }} title="Новое" />}
+                    {item.scope && <span style={S.tag}>{item.scope}</span>}
                   </div>
-                ))}
+                  <div style={{ fontSize: T.meta, color: C.textMuted }}>{item.date ? formatDateTime(item.date) : "Без даты"}</div>
+                </div>
+                <div style={{ fontSize: T.bodyStrong, color: C.text, fontWeight: 700, marginBottom: 8 }}>{item.title}</div>
+                <div style={{ fontSize: T.body, color: C.textDim, lineHeight: 1.55 }}>{item.text}</div>
+                <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+                  <button className="btn-hover" style={btn("ghost")} onClick={() => { markRead(item.id); onNavigate(item.actionId); }}>
+                    {item.actionLabel || "Открыть"}
+                  </button>
+                  {onDismiss && !item.isRead ? (
+                    <button className="btn-hover" style={btn("subtle")} onClick={() => { markRead(item.id); onDismiss(item.id); }}>
+                      Ознакомлен
+                    </button>
+                  ) : null}
+                </div>
               </div>
-            </div>
-          );
-        })
+            ))}
+          </div>
+          <Pagination page={pg.page} totalPages={pg.totalPages} onChange={pg.setPage} total={pg.total} />
+        </div>
       )}
     </div>
   );
@@ -9074,7 +9684,7 @@ function PageCriteria({ criteria, setCriteria, embedded = false }) {
         <tbody>{criteria.map(c=>(<tr key={c.id} className="row-hover"><td data-label="Роль" style={S.td}><RoleBadge role={c.role || "STAFF"}/></td><td data-label="Название" style={{...S.td,color:C.text,fontWeight:600}}>{c.name}</td><td data-label="Описание" style={S.td}>{c.description||"—"}</td><td data-label="Действия" style={S.td}><button className="btn-hover" style={btn("danger")} onClick={()=>setConfirmDelete(c)}>Удалить</button></td></tr>))}</tbody></table></div>
         </div>
       {showAdd&&(<Modal onClose={()=>setShowAdd(false)}><div style={S.cardTitle}>Новый критерий</div><div style={{display:"flex",flexDirection:"column",gap:12,marginTop:12}}>
-        <div><label style={S.label}>Роль</label><select style={S.select} value={form.role} onChange={e=>setForm(p=>({...p,role:e.target.value}))}><option value="STAFF">STAFF</option><option value="BOSS">BOSS</option></select></div>
+        <div><label style={S.label}>Роль</label><select style={S.select} value={form.role} onChange={e=>setForm(p=>({...p,role:e.target.value}))}><option value="STAFF">STAFF</option><option value="SENIOR_STAFF">SENIOR_STAFF</option><option value="BOSS">BOSS</option></select></div>
         <div><label style={S.label}>Название</label><input style={S.input} value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))}/></div>
         <div><label style={S.label}>Описание</label><textarea style={S.textarea} value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))}/></div>
         <div style={S.row}><button className="btn-hover btn-row" style={btn("gold")} onClick={addCriteria}>Создать</button></div>
@@ -9793,6 +10403,17 @@ function PageSystemLogs() {
    ═══════════════ MAIN APP ═════════════════
    ═══════════════════════════════════════════ */
 function App() {
+  const [themeKey, setThemeKey] = useState(() => getStoredTheme());
+  const toggleTheme = useCallback(() => {
+    setThemeKey(prev => {
+      const next = prev === "dark" ? "light" : "dark";
+      setStoredTheme(next);
+      applyTheme(next);
+      return next;
+    });
+  }, []);
+  const themeCtx = useMemo(() => ({ theme: themeKey, toggleTheme }), [themeKey, toggleTheme]);
+
   const [currentUser, setCurrentUser] = useState(null);
   const [checksMeta, setChecksMeta] = useState(() => DEFAULT_CHECKS_META);
   const [casesMeta, setCasesMeta] = useState(() => DEFAULT_CASES_META);
@@ -9853,6 +10474,29 @@ function App() {
   useEffect(() => () => {
     if (previewNoticeTimerRef.current) clearTimeout(previewNoticeTimerRef.current);
     if (syncNoticeTimerRef.current) clearTimeout(syncNoticeTimerRef.current);
+  }, []);
+
+  // Swipe to open/close sidebar on mobile
+  useSwipe(
+    useCallback(() => setSidebarOpen(true), []),
+    useCallback(() => setSidebarOpen(false), [])
+  );
+
+  // Scroll position management
+  const prevPageRef = useRef(activePage);
+  useEffect(() => {
+    if (prevPageRef.current !== activePage) {
+      saveScrollPosition(prevPageRef.current);
+      prevPageRef.current = activePage;
+      restoreScrollPosition(activePage);
+    }
+  }, [activePage]);
+
+  // Global hotkeys
+  useHotkey("escape", () => setSidebarOpen(false), []);
+  useHotkey("ctrl+k", () => {
+    const searchInput = document.querySelector('input[type="text"][placeholder*="\u041F\u043E\u0438\u0441\u043A"]');
+    if (searchInput) searchInput.focus();
   }, []);
 
   const showSyncNotice = useCallback((message, timeoutMs = 3200) => {
@@ -10204,7 +10848,11 @@ function App() {
     const extra = Array.isArray(checksMeta.notifications) ? checksMeta.notifications : [];
     return [...extra, ...baseNotifications];
   }, [effectiveUser, users, reports, bonuses, activityEvents, factions, performanceReviews, activitySettings, registrationRequests, bonusSettings, auditLog, positions, criteria, checksMeta]);
-  const notificationSummary = useMemo(() => getNotificationSummary(notifications), [notifications]);
+  const [dismissedNotifIds, setDismissedNotifIds] = useState(() => { try { return JSON.parse(localStorage.getItem("femida_notif_read") || "[]"); } catch { return []; } });
+  const notificationSummary = useMemo(() => {
+    const unread = (notifications || []).filter(n => !dismissedNotifIds.includes(n.id));
+    return getNotificationSummary(unread);
+  }, [notifications, dismissedNotifIds]);
   const maintenanceStatus = useMemo(() => getMaintenanceStatus(bonusSettings), [bonusSettings]);
   const navItems = useMemo(() => {
   let items = getNavItemsForUser(effectiveUser, activitySettings, checksMeta, positions);
@@ -10403,7 +11051,7 @@ function App() {
   const sessionUserPosition = allPositions.find(p => p.id === currentUser.positionId);
   const effectiveUserPosition = allPositions.find(p => p.id === effectiveUser.positionId);
   const isPendingApprovalSession = isPendingApprovalUser(currentUser);
-  const previewRoleOptions = ["STAFF", "BOSS", "FEDERAL"];
+  const previewRoleOptions = ["STAFF", "SENIOR_STAFF", "USP", "BOSS", "FEDERAL"];
   const notificationTone = notificationSummary.critical > 0 ? C.danger : notificationSummary.warning > 0 ? C.warning : C.blue;
 
   const renderPage = () => {
@@ -10481,6 +11129,11 @@ function App() {
             lastSyncAt={lastServerSyncAt}
             onDismiss={async (notificationId) => {
               try {
+                setDismissedNotifIds(prev => {
+                  const next = [...new Set([...prev, notificationId])];
+                  try { localStorage.setItem("femida_notif_read", JSON.stringify(next.slice(-200))); } catch {}
+                  return next;
+                });
                 await apiRequestWithParams("checks.notifications.dismiss", {}, { notificationId });
                 void bootstrapApp({ background: true });
               } catch (e) { /* ignore */ }
@@ -10537,7 +11190,10 @@ function App() {
   };
 
   return (
+    <ThemeContext.Provider value={themeCtx}>
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: F.body, display: "flex" }}>
+      <ToastContainer />
+      <ConfirmDialog />
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, background: C.overlay, zIndex: 90 }} />}
 
       {/* Mobile burger */}
@@ -10545,7 +11201,7 @@ function App() {
         className="mobile-burger">☰</div>
 
       {/* Sidebar */}
-      <div className={`app-sidebar${sidebarOpen ? " sidebar-open" : ""}`} style={{ width: 280, height: "100vh", background: C.bgSidebar, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, zIndex: 100, overflow: "hidden" }}>
+      <div className={`app-sidebar${sidebarOpen ? " sidebar-open" : ""}`} role="navigation" aria-label="\u041E\u0441\u043D\u043E\u0432\u043D\u0430\u044F \u043D\u0430\u0432\u0438\u0433\u0430\u0446\u0438\u044F" style={{ width: 280, height: "100vh", background: C.bgSidebar, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, zIndex: 100, overflow: "hidden" }}>
         <div style={{ padding: "24px 18px 14px", borderBottom: `1px solid ${C.border}`, textAlign: "center" }}>
           <img
             src="Group_13388_1.png"
@@ -10558,9 +11214,14 @@ function App() {
 
         <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}` }}>
           {hasSystemAdminAccess(currentUser) && <div style={{ fontSize: T.meta, color: C.textMuted, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>Сессия администратора</div>}
-          <div style={{ fontSize: T.body, color: C.text, fontWeight: 600 }}>{currentUser.surname} {currentUser.name}</div>
-          <div style={{ fontSize: T.meta, color: C.goldLight, marginTop: 4 }}>{sessionUserPosition ? sessionUserPosition.title : currentUser.role}</div>
-          <div style={{ fontSize: T.meta, color: C.textMuted, marginTop: 4 }}>{currentUser.subject}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <UserAvatar user={currentUser} size={40} />
+            <div>
+              <div style={{ fontSize: T.body, color: C.text, fontWeight: 600 }}>{currentUser.surname} {currentUser.name}</div>
+              <div style={{ fontSize: T.meta, color: C.goldLight, marginTop: 2 }}>{sessionUserPosition ? sessionUserPosition.title : currentUser.role}</div>
+              <div style={{ fontSize: T.meta - 1, color: C.textMuted, marginTop: 1 }}>{currentUser.subject}</div>
+            </div>
+          </div>
         </div>
 
         {isAdminSession && (
@@ -10609,7 +11270,7 @@ function App() {
                   </select>
                 </div>
 
-                {previewRole && ["STAFF", "BOSS"].includes(previewRole) && (
+                {previewRole && ["STAFF", "SENIOR_STAFF", "USP", "BOSS"].includes(previewRole) && (
                   <div>
                     <label style={S.label}>Субъект</label>
                     <select style={S.select} value={previewSubject} onChange={e => setPreviewSubject(e.target.value)}>
@@ -10663,7 +11324,7 @@ function App() {
             return (
               <div
                 key={item.id}
-                className="nav-item"
+                className={`nav-item${active ? " nav-active" : ""}`}
                 onClick={() => {
                   if (item.id === "admin-panel" && isAdminSession) {
                     openSessionAdminPanel();
@@ -10672,7 +11333,7 @@ function App() {
                   setActivePage(item.id);
                   setSidebarOpen(false);
                 }}
-                style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", cursor: "pointer", fontSize: T.body, color: active ? C.gold : C.textDim, background: active ? C.activeNav : "transparent", borderLeft: active ? `3px solid ${C.gold}` : "3px solid transparent", transition: "all 0.2s", letterSpacing: 0.5 }}>
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", cursor: "pointer", fontSize: T.body, color: active ? C.gold : C.textDim, borderLeft: "3px solid transparent", transition: "all 0.2s", letterSpacing: 0.5 }}>
                 <span>{item.icon}</span>
                 <span style={{ flex: 1 }}>{item.label}</span>
                 {notificationCount > 0 && <span style={{ ...badge(notificationTone), fontSize: 11 }}>{notificationCount}</span>}
@@ -10731,9 +11392,15 @@ function App() {
             {maintenanceStatus.announcement && <div style={{ marginTop: 6, color: C.textDim }}>{maintenanceStatus.announcement}</div>}
           </div>
         )}
+        <div className="page-transition" key={activePage}>
         {renderPage()}
+        </div>
+        <div className="app-footer-disclaimer no-print">
+          © 2026 ЕИАС «Фемида». Все данные носят игровой характер и не имеют юридической силы.
+        </div>
       </div>
     </div>
+    </ThemeContext.Provider>
   );
 }
 

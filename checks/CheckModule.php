@@ -34,6 +34,8 @@ const CALENDAR_EVENT_CATEGORIES = [
     'deadline' => 'Дедлайн',
     'personal' => 'Личное',
     'official' => 'Служебное',
+    'news'     => 'Новости',
+    'duty'     => 'Дежурство',
     'other'    => 'Другое',
 ];
 
@@ -613,10 +615,16 @@ function checks_ensure_schema(PDO $pdo): void
     if (!checks_column_exists($pdo, 'calendar_events', 'color')) {
         $pdo->exec('ALTER TABLE calendar_events ADD COLUMN color VARCHAR(32) DEFAULT NULL');
     }
+    if (!checks_column_exists($pdo, 'calendar_events', 'target_user_id')) {
+        $pdo->exec('ALTER TABLE calendar_events ADD COLUMN target_user_id VARCHAR(64) DEFAULT NULL');
+    }
 
     // Предварительная проверка: крайний срок 24 часа для жалоб
     if (checks_column_exists($pdo, 'cases', 'id') && !checks_column_exists($pdo, 'cases', 'preliminary_deadline')) {
         $pdo->exec('ALTER TABLE cases ADD COLUMN preliminary_deadline DATETIME DEFAULT NULL');
+    }
+    if (checks_column_exists($pdo, 'cases', 'id') && !checks_column_exists($pdo, 'cases', 'assigned_staff_name')) {
+        $pdo->exec('ALTER TABLE cases ADD COLUMN assigned_staff_name VARCHAR(255) DEFAULT NULL');
     }
     if (checks_column_exists($pdo, 'cases', 'id') && !checks_column_exists($pdo, 'cases', 'incident_date')) {
         $pdo->exec('ALTER TABLE cases ADD COLUMN incident_date DATE DEFAULT NULL');
@@ -3888,6 +3896,7 @@ function calendar_row_to_array(array $row, ?string $currentUserId = null): array
         $item['creatorUserId'] = (string)($row['creator_user_id'] ?? '');
         $item['visibility'] = (string)($row['visibility'] ?? 'private');
         $item['color'] = (string)($row['color'] ?? 'other');
+        $item['targetUserId'] = (string)($row['target_user_id'] ?? '');
         if ($currentUserId !== null) {
             $item['isOwner'] = $item['creatorUserId'] === $currentUserId;
         }
@@ -3994,7 +4003,7 @@ function checks_handle_calendar_create(PDO $pdo, array &$state): void
     if ($startsAt === '') respond(422, ['ok' => false, 'error' => 'Укажите дату начала']);
     if (!isset(CALENDAR_EVENT_CATEGORIES[$color])) $color = 'other';
     if (!in_array($visibility, ['private', 'subject', 'all'], true)) $visibility = 'private';
-    if ($visibility !== 'private' && !has_system_admin_access($user) && !in_array($user['role'] ?? '', ['BOSS', 'FEDERAL'], true)) {
+    if ($visibility !== 'private' && !has_system_admin_access($user) && !in_array($user['role'] ?? '', ['BOSS', 'SENIOR_STAFF', 'FEDERAL'], true)) {
         $visibility = 'private';
     }
 
@@ -4028,12 +4037,13 @@ function checks_handle_calendar_create(PDO $pdo, array &$state): void
     $now = checks_now_storage();
     foreach ($recipients as $recipientId) {
         checks_execute($pdo,
-            'INSERT INTO calendar_events (id, recipient_user_id, entity_type, entity_id, title, description, starts_at, ends_at, status_label, creator_user_id, visibility, color, created_at, updated_at)
-             VALUES (:id, :rid, :etype, :eid, :title, :desc, :sa, :ea, :sl, :cuid, :vis, :color, :ca, :ua)',
+            'INSERT INTO calendar_events (id, recipient_user_id, entity_type, entity_id, title, description, starts_at, ends_at, status_label, creator_user_id, visibility, color, target_user_id, created_at, updated_at)
+             VALUES (:id, :rid, :etype, :eid, :title, :desc, :sa, :ea, :sl, :cuid, :vis, :color, :tuid, :ca, :ua)',
             [
                 ':id' => checks_uuid(), ':rid' => $recipientId, ':etype' => 'manual', ':eid' => $groupId,
                 ':title' => $title, ':desc' => $description, ':sa' => $startsAtStorage, ':ea' => $endsAtStorage,
                 ':sl' => $statusLabel, ':cuid' => $user['id'], ':vis' => $visibility, ':color' => $color,
+                ':tuid' => $targetUserId !== '' ? $targetUserId : null,
                 ':ca' => $now, ':ua' => $now,
             ]
         );
@@ -4350,7 +4360,7 @@ function checks_handle_action(PDO $pdo, string $action, array &$state): bool
 define('CASES_STATUSES', [
     'registered'                => 'Зарегистрировано',
     'assigned_staff'            => 'Назначен исполнитель',
-    'assigned_supervisor'       => 'Назначен надзирающий',
+    'assigned_supervisor'       => 'Назначен прокурор',
     'preliminary_check'         => 'На предварительной проверке',
     'check_terminated'          => 'Проверка прекращена',
     'transferred_investigation' => 'Передано в следствие',
@@ -4369,7 +4379,7 @@ define('CASES_STATUSES', [
 ]);
 
 define('CASES_STATUS_TRANSITIONS', [
-    'registered'                => ['assigned_staff'],
+    'registered'                => ['preliminary_check'],
     'assigned_staff'            => ['assigned_supervisor', 'preliminary_check'],
     'assigned_supervisor'       => ['preliminary_check'],
     'preliminary_check'         => ['check_terminated', 'transferred_investigation'],
@@ -4388,7 +4398,7 @@ define('CASES_STATUS_TRANSITIONS', [
     'archive'                   => [],
 ]);
 
-define('CASES_TERMINAL_STATUSES', ['completed', 'archive', 'check_terminated', 'criminal_case_refused']);
+define('CASES_TERMINAL_STATUSES', ['completed', 'archive', 'check_terminated', 'criminal_case_refused', 'prosecution_refused']);
 
 define('CASES_SEVERITY', [
     'minor'          => ['label' => 'Небольшой тяжести', 'days' => 6],
@@ -4409,8 +4419,8 @@ function cases_calc_deadline_by_severity(string $severity, ?string $fromDate = n
 }
 
 define('CASES_TRANSITION_REQUIRED_FIELDS', [
-    'assigned_staff'        => ['assigned_staff_id'],
-    'assigned_supervisor'   => ['supervisor_id'],
+    'assigned_staff'        => [],
+    'assigned_supervisor'   => [],
     'check_terminated'      => ['stage_result'],
     'criminal_case_opened'  => ['stage_result'],
     'criminal_case_refused' => ['stage_result'],
@@ -4557,9 +4567,10 @@ function cases_user_can_view(?array $user, array $case): bool
     if (!$user) return false;
     if (has_system_admin_access($user)) return true;
     if (($user['role'] ?? '') === 'FEDERAL') return true;
-    if (($user['role'] ?? '') === 'BOSS' && ($user['subject'] ?? '') === ($case['subject'] ?? '')) return true;
+    if (in_array($user['role'] ?? '', ['BOSS', 'SENIOR_STAFF', 'USP'], true) && ($user['subject'] ?? '') === ($case['subject'] ?? '')) return true;
     if (($case['assigned_staff_id'] ?? '') === ($user['id'] ?? '')) return true;
     if (($case['supervisor_id'] ?? '') === ($user['id'] ?? '')) return true;
+    if (($case['created_by'] ?? '') === ($user['id'] ?? '')) return true;
     return false;
 }
 
@@ -4569,7 +4580,10 @@ function cases_user_can_manage(?array $user, array $case): bool
     if (has_system_admin_access($user)) return true;
     if (($user['role'] ?? '') === 'FEDERAL') return true;
     if (($user['subject'] ?? '') === GENERAL_SUBJECT) return true;
-    if (($user['role'] ?? '') === 'BOSS' && ($user['subject'] ?? '') === ($case['subject'] ?? '')) return true;
+    if (in_array($user['role'] ?? '', ['BOSS', 'SENIOR_STAFF', 'USP'], true) && ($user['subject'] ?? '') === ($case['subject'] ?? '')) return true;
+    if (($case['supervisor_id'] ?? '') === ($user['id'] ?? '')) return true;
+    if (($case['assigned_staff_id'] ?? '') === ($user['id'] ?? '')) return true;
+    if (($case['created_by'] ?? '') === ($user['id'] ?? '')) return true;
     return false;
 }
 
@@ -4582,8 +4596,10 @@ function cases_user_can_change_status(?array $user, array $case, string $newStat
 
     if (has_system_admin_access($user)) return true;
     if (($user['role'] ?? '') === 'FEDERAL') return true;
-    if (($user['role'] ?? '') === 'BOSS' && ($user['subject'] ?? '') === ($case['subject'] ?? '')) return true;
+    if (in_array($user['role'] ?? '', ['BOSS', 'SENIOR_STAFF', 'USP'], true) && ($user['subject'] ?? '') === ($case['subject'] ?? '')) return true;
     if (($case['assigned_staff_id'] ?? '') === ($user['id'] ?? '')) return true;
+    if (($case['supervisor_id'] ?? '') === ($user['id'] ?? '')) return true;
+    if (($case['created_by'] ?? '') === ($user['id'] ?? '')) return true;
     return false;
 }
 
@@ -4643,7 +4659,7 @@ function cases_format_row(array $row, array $state): array
         'incidentDate' => $row['incident_date'] ?? null,
         'decisionDeadline' => $row['decision_deadline'] ?? null,
         'assignedStaffId' => $row['assigned_staff_id'],
-        'assignedStaffName' => $row['assigned_staff_id'] ? $findUserName($row['assigned_staff_id']) : null,
+        'assignedStaffName' => ($row['assigned_staff_name'] ?? '') !== '' ? $row['assigned_staff_name'] : ($row['assigned_staff_id'] ? $findUserName($row['assigned_staff_id']) : null),
         'supervisorId' => $row['supervisor_id'],
         'supervisorName' => $row['supervisor_id'] ? $findUserName($row['supervisor_id']) : null,
         'skExecutorName' => $row['sk_executor_name'] ?? null,
@@ -4663,7 +4679,7 @@ function cases_format_row(array $row, array $state): array
 define('CASES_DISCORD_EVENT_CONFIG', [
     'case.created'              => ['color' => 0x0077b6, 'title' => '📨 Новое обращение'],
     'case.assigned'             => ['color' => 0x1d70d1, 'title' => '👤 Назначен исполнитель'],
-    'case.supervisor_assigned'  => ['color' => 0x0353a4, 'title' => '👁 Назначен надзирающий'],
+    'case.supervisor_assigned'  => ['color' => 0x0353a4, 'title' => '👁 Назначен прокурор'],
     'case.status_changed'       => ['color' => 0xd69a2d, 'title' => '🔄 Статус обращения'],
     'case.deadline_approaching' => ['color' => 0xd69a2d, 'title' => '⏰ Приближается срок'],
     'case.overdue'              => ['color' => 0xb34739, 'title' => '🔴 Просрочено'],
@@ -4691,7 +4707,7 @@ define('CASES_DISCORD_SK_ROLE_IDS', [
 // Роли прокурора и зама субъекта — пинг на все события
 define('CASES_DISCORD_PROSECUTOR_ROLE_IDS', [
     'Рублёвка'    => ['1334917739898343464', '1334917743144734843'],
-    'Арбат'       => ['1246728779544395867', '1392900912292433961'],
+    'Арбат'       => ['1246728779544395867', '1246728780198969465'],
     'Патрики'     => ['1321237406514544651', '1321237408418893927'],
     'Тверской'    => ['1367620838760779817', '1367620840866320435'],
     'Кутузовский' => ['1465602272149897248', '1465602274427404371'],
@@ -4738,7 +4754,8 @@ function cases_build_discord_embed(string $event, array $data): array
     $descParts = [];
     if (!empty($data['description']))    $descParts[] = mb_substr($data['description'], 0, 300, 'UTF-8');
     if (!empty($data['assignedName']))   $descParts[] = '**Исполнитель:** ' . $data['assignedName'];
-    if (!empty($data['supervisorName'])) $descParts[] = '**Надзирающий:** ' . $data['supervisorName'];
+    if (!empty($data['supervisorName'])) $descParts[] = '**Прокурор:** ' . $data['supervisorName'];
+    if (!empty($data['skExecutorName'])) $descParts[] = '**Следователь:** ' . $data['skExecutorName'];
     if (!empty($data['oldStatusLabel']) && !empty($data['statusLabel'])) {
         $descParts[] = '~~' . $data['oldStatusLabel'] . '~~ → **' . $data['statusLabel'] . '**';
     } elseif (!empty($data['statusLabel'])) {
@@ -5005,7 +5022,8 @@ function cases_handle_create(PDO $pdo, array &$state): void
     }
 
     $id = checks_uuid();
-    $regNumber = cases_generate_reg_number($pdo, $subject);
+    $customRegNumber = trim((string)($body['customRegNumber'] ?? ''));
+    $regNumber = $customRegNumber !== '' ? $customRegNumber : cases_generate_reg_number($pdo, $subject);
     $now = checks_now_storage();
 
     $status = 'registered';
@@ -5092,7 +5110,7 @@ function cases_handle_create(PDO $pdo, array &$state): void
     if ($supervisorId) {
         checks_create_notification($pdo, $supervisorId, 'case.supervisor_assigned', 'case', $id,
             'Надзор за обращением ' . $regNumber,
-            'Вы назначены надзирающим по обращению ' . $regNumber,
+            'Вы назначены прокурором по обращению ' . $regNumber,
             'info', 'cases', ['caseId' => $id]);
     }
 
@@ -5132,10 +5150,11 @@ function cases_handle_list(PDO $pdo, array &$state): void
 
     $role = $user['role'] ?? '';
     if ($role === 'STAFF') {
-        $sql .= ' AND (assigned_staff_id = :uid OR supervisor_id = :uid2)';
+        $sql .= ' AND (assigned_staff_id = :uid OR supervisor_id = :uid2 OR created_by = :uid3)';
         $params[':uid'] = $user['id'];
         $params[':uid2'] = $user['id'];
-    } elseif ($role === 'BOSS') {
+        $params[':uid3'] = $user['id'];
+    } elseif ($role === 'BOSS' || $role === 'SENIOR_STAFF' || $role === 'USP') {
         $sql .= ' AND subject = :subject';
         $params[':subject'] = $user['subject'] ?? '';
     }
@@ -5146,19 +5165,25 @@ function cases_handle_list(PDO $pdo, array &$state): void
         $params[':status'] = $statusFilter;
     }
 
-    if ($subjectFilter !== '' && ($role === 'FEDERAL' || has_system_admin_access($user))) {
+    if ($subjectFilter !== '' && (($role === 'FEDERAL') || has_system_admin_access($user))) {
         $sql .= ' AND subject = :subject_filter';
         $params[':subject_filter'] = $subjectFilter;
     }
 
-    if ($tab === 'my') {
-        $sql .= ' AND assigned_staff_id = :my_uid';
-        $params[':my_uid'] = $user['id'];
-    } elseif ($tab === 'supervised') {
-        $sql .= ' AND supervisor_id = :sv_uid AND status NOT IN (\'completed\', \'archive\', \'check_terminated\', \'criminal_case_refused\')';
-        $params[':sv_uid'] = $user['id'];
-    } elseif ($tab === 'overdue') {
-        $sql .= ' AND deadline IS NOT NULL AND deadline < CURDATE() AND status NOT IN (\'completed\', \'archive\', \'check_terminated\', \'criminal_case_refused\', \'prosecution_refused\')';
+    if ($tab === 'archive') {
+        $sql .= ' AND status = \'archive\'';
+    } else {
+        // Exclude archive from all other tabs
+        $sql .= ' AND status != \'archive\'';
+        if ($tab === 'my') {
+            $sql .= ' AND assigned_staff_id = :my_uid';
+            $params[':my_uid'] = $user['id'];
+        } elseif ($tab === 'supervised') {
+            $sql .= ' AND supervisor_id = :sv_uid AND status NOT IN (\'completed\', \'check_terminated\', \'criminal_case_refused\')';
+            $params[':sv_uid'] = $user['id'];
+        } elseif ($tab === 'overdue') {
+            $sql .= ' AND deadline IS NOT NULL AND deadline < CURDATE() AND status NOT IN (\'completed\', \'check_terminated\', \'criminal_case_refused\', \'prosecution_refused\')';
+        }
     }
 
     $sql .= ' ORDER BY created_at DESC';
@@ -5378,7 +5403,7 @@ function cases_handle_change_status(PDO $pdo, array &$state): void
             respond(422, ['ok' => false, 'error' => 'Сначала назначьте исполнителя']);
         }
         if ($field === 'supervisor_id' && empty($row['supervisor_id'])) {
-            respond(422, ['ok' => false, 'error' => 'Сначала назначьте надзирающего']);
+            respond(422, ['ok' => false, 'error' => 'Сначала назначьте прокурора']);
         }
         if ($field === 'stage_result' && $stageResult === '') {
             respond(422, ['ok' => false, 'error' => 'Укажите результат этапа']);
@@ -5444,6 +5469,7 @@ function cases_handle_change_status(PDO $pdo, array &$state): void
         'oldStatusLabel' => CASES_STATUSES[$oldStatus] ?? $oldStatus,
         'statusLabel' => CASES_STATUSES[$newStatus] ?? $newStatus,
         'newStatus' => $newStatus,
+        'skExecutorName' => $updated['sk_executor_name'] ?? '',
         'discordUserIds' => cases_resolve_discord_ids($updated, $state),
     ]);
 
@@ -5456,21 +5482,32 @@ function cases_handle_assign_staff(PDO $pdo, array &$state): void
     $body = read_json_body();
     $caseId = trim((string)($body['caseId'] ?? ''));
     $staffId = trim((string)($body['staffId'] ?? ''));
+    $staffName = trim((string)($body['staffName'] ?? ''));
 
-    if ($caseId === '' || $staffId === '') {
-        respond(422, ['ok' => false, 'error' => 'Укажите ID дела и ID сотрудника']);
+    if ($caseId === '' || ($staffId === '' && $staffName === '')) {
+        respond(422, ['ok' => false, 'error' => 'Укажите ID дела и ФИО следователя']);
     }
 
     $row = checks_fetch_one($pdo, 'SELECT * FROM cases WHERE id = :id AND deleted_at IS NULL', [':id' => $caseId]);
     if (!$row) respond(404, ['ok' => false, 'error' => 'Дело не найдено']);
-    if (!cases_user_can_manage($user, $row)) {
+
+    // Any user who can view the case can assign staff
+    if (!cases_user_can_view($user, $row)) {
         respond(403, ['ok' => false, 'error' => 'Недостаточно прав']);
     }
 
     $now = checks_now_storage();
-    checks_execute($pdo, 'UPDATE cases SET assigned_staff_id = :staff, updated_at = :now WHERE id = :id', [
-        ':staff' => $staffId, ':now' => $now, ':id' => $caseId,
-    ]);
+    if ($staffId !== '') {
+        // System user assignment
+        checks_execute($pdo, 'UPDATE cases SET assigned_staff_id = :staff, assigned_staff_name = NULL, updated_at = :now WHERE id = :id', [
+            ':staff' => $staffId, ':now' => $now, ':id' => $caseId,
+        ]);
+    } else {
+        // Free-text name assignment
+        checks_execute($pdo, 'UPDATE cases SET assigned_staff_id = NULL, assigned_staff_name = :name, updated_at = :now WHERE id = :id', [
+            ':name' => $staffName, ':now' => $now, ':id' => $caseId,
+        ]);
+    }
 
     // If status is 'registered', auto-advance to 'assigned_staff'
     if ($row['status'] === 'registered') {
@@ -5478,16 +5515,18 @@ function cases_handle_assign_staff(PDO $pdo, array &$state): void
         checks_execute($pdo, 'INSERT INTO case_status_history (id, case_id, from_status, to_status, changed_by, comment, created_at)
             VALUES (:id, :case_id, :from, :to, :by, :comment, :at)', [
             ':id' => checks_uuid(), ':case_id' => $caseId, ':from' => 'registered',
-            ':to' => 'assigned_staff', ':by' => $user['id'], ':comment' => 'Исполнитель назначен', ':at' => $now,
+            ':to' => 'assigned_staff', ':by' => $user['id'], ':comment' => 'Следователь назначен', ':at' => $now,
         ]);
     }
 
-    checks_log_audit($pdo, 'case', $caseId, 'case.assigned', $user, ['assignedStaffId' => $row['assigned_staff_id']], ['assignedStaffId' => $staffId]);
+    checks_log_audit($pdo, 'case', $caseId, 'case.assigned', $user, ['assignedStaffId' => $row['assigned_staff_id']], ['assignedStaffId' => $staffId, 'assignedStaffName' => $staffName]);
 
-    checks_create_notification($pdo, $staffId, 'case.assigned', 'case', $caseId,
-        'Назначение на обращение ' . $row['reg_number'],
-        'Вы назначены исполнителем по обращению ' . $row['reg_number'],
-        'warning', 'cases', ['caseId' => $caseId]);
+    if ($staffId !== '') {
+        checks_create_notification($pdo, $staffId, 'case.assigned', 'case', $caseId,
+            'Назначение на обращение ' . $row['reg_number'],
+            'Вы назначены следователем по обращению ' . $row['reg_number'],
+            'warning', 'cases', ['caseId' => $caseId]);
+    }
 
     $updated = checks_fetch_one($pdo, 'SELECT * FROM cases WHERE id = :id', [':id' => $caseId]);
     $formatted = cases_format_row($updated, $state);
@@ -5515,12 +5554,12 @@ function cases_handle_assign_supervisor(PDO $pdo, array &$state): void
     $supervisorId = trim((string)($body['supervisorId'] ?? ''));
 
     if ($caseId === '' || $supervisorId === '') {
-        respond(422, ['ok' => false, 'error' => 'Укажите ID дела и ID надзирающего']);
+        respond(422, ['ok' => false, 'error' => 'Укажите ID дела и ID прокурора']);
     }
 
     $row = checks_fetch_one($pdo, 'SELECT * FROM cases WHERE id = :id AND deleted_at IS NULL', [':id' => $caseId]);
     if (!$row) respond(404, ['ok' => false, 'error' => 'Дело не найдено']);
-    if (!cases_user_can_manage($user, $row)) {
+    if (!cases_user_can_view($user, $row)) {
         respond(403, ['ok' => false, 'error' => 'Недостаточно прав']);
     }
 
@@ -5543,7 +5582,7 @@ function cases_handle_assign_supervisor(PDO $pdo, array &$state): void
 
     checks_create_notification($pdo, $supervisorId, 'case.supervisor_assigned', 'case', $caseId,
         'Надзор за обращением ' . $row['reg_number'],
-        'Вы назначены надзирающим по обращению ' . $row['reg_number'],
+        'Вы назначены прокурором по обращению ' . $row['reg_number'],
         'info', 'cases', ['caseId' => $caseId]);
 
     $updated = checks_fetch_one($pdo, 'SELECT * FROM cases WHERE id = :id', [':id' => $caseId]);
@@ -5741,11 +5780,11 @@ function cases_handle_analytics(PDO $pdo, array &$state): void
     }
 
     $subjectFilter = '';
-    if (($user['role'] ?? '') === 'BOSS') {
+    if (in_array($user['role'] ?? '', ['BOSS', 'SENIOR_STAFF'], true)) {
         $subjectFilter = $user['subject'] ?? '';
     }
     $body = read_json_body();
-    if (!empty($body['subject']) && (($user['role'] ?? '') === 'FEDERAL' || has_system_admin_access($user))) {
+    if (!empty($body['subject']) && (in_array($user['role'] ?? '', ['FEDERAL', 'USP'], true) || has_system_admin_access($user))) {
         $subjectFilter = trim((string)$body['subject']);
     }
 
@@ -5821,6 +5860,22 @@ function cases_handle_analytics(PDO $pdo, array &$state): void
         $staffStats[] = array_merge($stats, ['userId' => $uid, 'name' => $staffName]);
     }
 
+    // Aggregate by subject
+    $bySubject = [];
+    foreach ($rows as $r) {
+        $sub = $r['subject'] ?? '';
+        if ($sub === '') continue;
+        if (!isset($bySubject[$sub])) $bySubject[$sub] = ['total' => 0, 'active' => 0, 'overdue' => 0];
+        $bySubject[$sub]['total']++;
+        $st = $r['status'] ?? '';
+        if (!in_array($st, CASES_TERMINAL_STATUSES, true)) {
+            $bySubject[$sub]['active']++;
+            if (!empty($r['deadline']) && new DateTime($r['deadline']) < $now) {
+                $bySubject[$sub]['overdue']++;
+            }
+        }
+    }
+
     respond(200, ['ok' => true, 'data' => [
         'total' => count($rows),
         'totalActive' => $totalActive,
@@ -5830,6 +5885,7 @@ function cases_handle_analytics(PDO $pdo, array &$state): void
         'byType' => $byType,
         'byFaction' => $byFaction,
         'byStaff' => $staffStats,
+        'bySubject' => $bySubject,
     ]]);
 }
 
@@ -5971,7 +6027,7 @@ function cases_build_bootstrap_meta(PDO $pdo, array $state, ?array $user): array
         $where .= ' AND (assigned_staff_id = :uid OR supervisor_id = :uid2)';
         $params[':uid'] = $uid;
         $params[':uid2'] = $uid;
-    } elseif ($role === 'BOSS') {
+    } elseif ($role === 'BOSS' || $role === 'SENIOR_STAFF' || $role === 'USP') {
         $where .= ' AND subject = :subject';
         $params[':subject'] = $subject;
     }
@@ -6006,7 +6062,7 @@ function cases_build_bootstrap_meta(PDO $pdo, array $state, ?array $user): array
 
     $meta['counters'] = compact('total', 'assigned', 'supervised', 'overdue', 'active', 'approaching');
     $meta['approachingCaseIds'] = $approachingCases;
-    $meta['permissions']['canAccessModule'] = $total > 0 || $meta['permissions']['canCreate'] || has_system_admin_access($user) || $role === 'FEDERAL';
+    $meta['permissions']['canAccessModule'] = $total > 0 || $meta['permissions']['canCreate'] || has_system_admin_access($user) || in_array($role, ['FEDERAL', 'USP'], true);
 
     return $meta;
 }

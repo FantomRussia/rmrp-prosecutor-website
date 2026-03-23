@@ -1,0 +1,19 @@
+Options -Indexes
+
+<FilesMatch "^\.env$">
+    Deny from all
+</FilesMatch>
+
+<FilesMatch "^env\.php$">
+    Deny from all
+</FilesMatch>
+
+<Files "CheckModule.php">
+    Deny from all
+</Files>
+
+Header always set X-Content-Type-Options "nosniff"
+Header always set X-Frame-Options "DENY"
+Header always set X-XSS-Protection "1; mode=block"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"

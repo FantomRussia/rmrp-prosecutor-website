@@ -24,7 +24,7 @@ function renderTextWithLinks(text) {
 const CASE_STATUSES = {
   registered:                { label: "Зарегистрировано",                 color: "#1d70d1", icon: "📋" },
   assigned_staff:            { label: "Назначен исполнитель",             color: "#0077b6", icon: "👤" },
-  assigned_supervisor:       { label: "Назначен надзирающий",             color: "#0353a4", icon: "👁" },
+  assigned_supervisor:       { label: "Назначен прокурор",                color: "#0353a4", icon: "👁" },
   preliminary_check:         { label: "На предварительной проверке",      color: "#d69a2d", icon: "🔍" },
   check_terminated:          { label: "Проверка прекращена",              color: "#b34739", icon: "⛔" },
   transferred_investigation: { label: "Передано в следствие",             color: "#c77c28", icon: "📤" },
@@ -43,7 +43,7 @@ const CASE_STATUSES = {
 };
 
 const CASE_STATUS_TRANSITIONS = {
-  registered:                ["assigned_staff"],
+  registered:                ["preliminary_check"],
   assigned_staff:            ["assigned_supervisor", "preliminary_check"],
   assigned_supervisor:       ["preliminary_check"],
   preliminary_check:         ["check_terminated", "transferred_investigation"],
@@ -73,7 +73,7 @@ const CASE_SEVERITY = {
 };
 const CASES_EXTENSION_DAYS = 7;
 
-const CASES_TERMINAL_STATUSES_SET = new Set(["completed", "archive", "check_terminated", "criminal_case_refused"]);
+const CASES_TERMINAL_STATUSES_SET = new Set(["completed", "archive", "check_terminated", "criminal_case_refused", "prosecution_refused"]);
 const CASE_TRANSITION_REQUIRES_STAGE_RESULT = ["check_terminated", "criminal_case_opened", "criminal_case_refused", "prosecution_approved", "prosecution_refused"];
 const CASE_TRANSITION_REQUIRES_FINAL_RESULT = ["completed"];
 
@@ -104,7 +104,11 @@ function normalizeCasesMeta(meta) {
 async function uploadCaseFile(file) {
   const fd = new FormData();
   fd.append("file", file);
-  const resp = await fetch("api.php?action=upload-case-file", { method: "POST", body: fd, credentials: "include" });
+  const headers = {};
+  if (typeof __csrfToken === "string" && __csrfToken) {
+    headers["X-CSRF-Token"] = __csrfToken;
+  }
+  const resp = await fetch("api.php?action=upload-case-file", { method: "POST", body: fd, credentials: "include", headers });
   const data = await resp.json();
   if (!data.ok) throw new Error(data.error || "Ошибка загрузки");
   return data;
@@ -121,7 +125,7 @@ function ImageUploadButton({ onUploaded, label, style }) {
       const result = await uploadCaseFile(file);
       onUploaded(result.url, result.name || file.name);
     } catch (err) {
-      alert(err.message || "Ошибка загрузки");
+      showError(err.message || "Ошибка загрузки");
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -200,7 +204,7 @@ function PageCases({ user, users, factions, casesMeta, checksMeta, onRefresh, on
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const isFederalOrAdmin = user?.role === "FEDERAL" || hasSystemAdminAccess(user);
-  const isBoss = user?.role === "BOSS";
+  const isBoss = user?.role === "BOSS" || user?.role === "SENIOR_STAFF" || user?.role === "USP";
   const canCreate = true; // Все сотрудники могут регистрировать обращения
   const enabledSubjects = checksMeta?.settings?.enabledSubjects || ["Рублёвка", "Арбат", "Патрики", "Тверской", "Кутузовский"];
 
@@ -222,12 +226,14 @@ function PageCases({ user, users, factions, casesMeta, checksMeta, onRefresh, on
 
   useEffect(() => { loadCases(); }, [tab, statusFilter, subjectFilter]);
 
+  const debouncedSearch = typeof useDebouncedValue === "function" ? useDebouncedValue(searchText, 300) : searchText;
+
   const filtered = useMemo(() => {
     let list = cases;
     if (typeFilter) list = list.filter(c => c.caseType === typeFilter);
     if (sourceFilter) list = list.filter(c => c.source === sourceFilter);
-    if (searchText.trim()) {
-      const q = searchText.trim().toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.trim().toLowerCase();
       list = list.filter(c =>
         (c.regNumber || "").toLowerCase().includes(q) ||
         (c.applicantName || "").toLowerCase().includes(q) ||
@@ -236,7 +242,7 @@ function PageCases({ user, users, factions, casesMeta, checksMeta, onRefresh, on
       );
     }
     return list;
-  }, [cases, typeFilter, sourceFilter, searchText]);
+  }, [cases, typeFilter, sourceFilter, debouncedSearch]);
 
   const { page, totalPages, paged, setPage, total } = usePagination(filtered, 20);
 
@@ -263,6 +269,7 @@ function PageCases({ user, users, factions, casesMeta, checksMeta, onRefresh, on
     { id: "my", label: "Мои дела", count: casesMeta?.counters?.assigned || 0 },
     { id: "supervised", label: "На контроле", count: casesMeta?.counters?.supervised || 0 },
     { id: "overdue", label: "Просроченные", count: casesMeta?.counters?.overdue || 0 },
+    { id: "archive", label: "Архив", count: null },
     { id: "analytics", label: "Аналитика", count: null },
   ];
 
@@ -390,12 +397,20 @@ function PageCases({ user, users, factions, casesMeta, checksMeta, onRefresh, on
     error && React.createElement("div", { style: { color: C.danger, marginBottom: 12 } }, error),
 
     // Loading
-    loading && React.createElement("div", { style: { color: C.textDim, padding: 20 } }, "Загрузка..."),
+    loading && React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
+      React.createElement(SkeletonCard, null),
+      React.createElement(SkeletonCard, null),
+      React.createElement(SkeletonCard, null),
+    ),
 
     // List
-    !loading && paged.length === 0 && React.createElement("div", { style: { color: C.textMuted, padding: 40, textAlign: "center" } },
-      tab === "overdue" ? "Просроченных дел нет" : "Обращений не найдено",
-    ),
+    !loading && paged.length === 0 && React.createElement(EmptyState, {
+      icon: tab === "overdue" ? "\u2705" : "\uD83D\uDCC2",
+      title: tab === "overdue" ? "\u041F\u0440\u043E\u0441\u0440\u043E\u0447\u0435\u043D\u043D\u044B\u0445 \u0434\u0435\u043B \u043D\u0435\u0442" : "\u041E\u0431\u0440\u0430\u0449\u0435\u043D\u0438\u0439 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E",
+      description: tab === "overdue" ? "\u0412\u0441\u0435 \u0434\u0435\u043B\u0430 \u0432 \u0441\u0440\u043E\u043A\u0435" : "\u0417\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u0443\u0439\u0442\u0435 \u043F\u0435\u0440\u0432\u043E\u0435 \u043E\u0431\u0440\u0430\u0449\u0435\u043D\u0438\u0435 \u0438\u043B\u0438 \u0436\u0430\u043B\u043E\u0431\u0443",
+      actionLabel: canCreate && tab !== "overdue" ? "+ \u0417\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C" : undefined,
+      onAction: canCreate && tab !== "overdue" ? function() { setShowCreateModal(true); } : undefined,
+    }),
 
     !loading && paged.length > 0 && React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
       paged.map(c => React.createElement("div", {
@@ -425,7 +440,7 @@ function PageCases({ user, users, factions, casesMeta, checksMeta, onRefresh, on
             ),
             React.createElement("div", { style: { fontSize: 12, color: C.textMuted, display: "flex", gap: 12, flexWrap: "wrap" } },
               c.assignedStaffName && React.createElement("span", null, "Следователь: ", c.assignedStaffName),
-              c.supervisorName && React.createElement("span", null, "Надзирающий: ", c.supervisorName),
+              c.supervisorName && React.createElement("span", null, "Прокурор: ", c.supervisorName),
               c.subject && React.createElement("span", null, "Субъект: ", c.subject),
               c.deadline && (() => {
                 const days = daysUntilDeadline(c);
@@ -478,6 +493,7 @@ function CaseCreateModal({ user, users, factions, enabledSubjects, onClose, onCr
     deadline: "",
     comments: "",
     skExecutorName: "",
+    customRegNumber: "",
     subject: (user?.subject === GENERAL_SUBJECT || user?.role === "FEDERAL") ? (enabledSubjects[0] || "") : (user?.subject || enabledSubjects[0] || ""),
     assignedStaffId: "",
     supervisorId: "",
@@ -578,6 +594,13 @@ function CaseCreateModal({ user, users, factions, enabledSubjects, onClose, onCr
       ),
     ),
 
+    // Custom reg number
+    React.createElement("div", { style: fieldStyle },
+      React.createElement("label", { style: labelSt }, "Регистрационный номер"),
+      React.createElement("input", { type: "text", value: form.customRegNumber, onChange: e => update("customRegNumber", e.target.value), style: S.input, placeholder: "Оставьте пустым для автоматической генерации" }),
+      React.createElement("div", { style: { fontSize: 12, color: C.textMuted, marginTop: 4 } }, "Если не указан — номер будет сгенерирован автоматически."),
+    ),
+
     // Forum link
     form.source === "forum" && React.createElement("div", { style: fieldStyle },
       React.createElement("label", { style: labelSt }, "Ссылка на форум *"),
@@ -621,9 +644,9 @@ function CaseCreateModal({ user, users, factions, enabledSubjects, onClose, onCr
       ),
     ),
 
-    // Supervisor
+    // Supervisor (prosecutor)
     React.createElement("div", { style: fieldStyle },
-      React.createElement("label", { style: labelSt }, "Надзирающий"),
+      React.createElement("label", { style: labelSt }, "Прокурор"),
       React.createElement("select", { value: form.supervisorId, onChange: e => update("supervisorId", e.target.value), style: S.select },
         React.createElement("option", { value: "" }, "— назначить позже —"),
         ...candidateUsers.map(u =>
@@ -634,8 +657,8 @@ function CaseCreateModal({ user, users, factions, enabledSubjects, onClose, onCr
       ),
     ),
 
-    // SK executor name (when source is sk_transfer)
-    form.source === "sk_transfer" && React.createElement("div", { style: fieldStyle },
+    // SK executor name (when source is sk_transfer or fsb_transfer)
+    (form.source === "sk_transfer" || form.source === "fsb_transfer") && React.createElement("div", { style: fieldStyle },
       React.createElement("label", { style: labelSt }, "Следователь (ФИО сотрудника СК)"),
       React.createElement("input", { type: "text", value: form.skExecutorName, onChange: e => update("skExecutorName", e.target.value), style: S.input, placeholder: "Фамилия Имя Отчество" }),
     ),
@@ -714,10 +737,11 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
   const isManager = user && caseData && (
     isAdmin ||
     user.role === "FEDERAL" ||
-    (user.role === "BOSS" && user.subject === caseData.subject)
+    ((user.role === "BOSS" || user.role === "SENIOR_STAFF" || user.role === "USP") && user.subject === caseData.subject)
   );
   const isAssigned = user && caseData && caseData.assignedStaffId === user.id;
   const isSupervisor = user && caseData && caseData.supervisorId === user.id;
+  const isCreator = user && caseData && caseData.createdBy === user.id;
   const enabledSubjects = checksMeta?.settings?.enabledSubjects || ["Рублёвка", "Арбат", "Патрики", "Тверской", "Кутузовский"];
 
   const loadCase = useCallback(async () => {
@@ -744,11 +768,11 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
     const requiresFinal = CASE_TRANSITION_REQUIRES_FINAL_RESULT.includes(newStatus);
 
     if (requiresStage && !stageResult.trim()) {
-      alert("Укажите результат этапа");
+      showWarning("Укажите результат этапа");
       return;
     }
     if (requiresFinal && !finalResult.trim()) {
-      alert("Укажите итоговый результат");
+      showWarning("Укажите итоговый результат");
       return;
     }
 
@@ -772,22 +796,33 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
       setFinalResult("");
       setSkExecutorName("");
     } catch (e) {
-      alert(e.message || "Ошибка смены статуса");
+      showError(e.message || "Ошибка смены статуса");
     } finally {
       setSavingStatus(false);
     }
   };
 
   const handleAssignStaff = async () => {
-    if (!selectedStaffId) return;
+    if (!selectedStaffId.trim()) return;
     setAssigningStaff(true);
     try {
-      await apiRequest("cases.assign-staff", { caseId, staffId: selectedStaffId });
+      // Try to find a matching system user
+      const matchedUser = (users || []).find(u => {
+        const fullName = ((u.surname || "") + " " + (u.name || "")).trim().toLowerCase();
+        return fullName === selectedStaffId.trim().toLowerCase();
+      });
+      const payload = { caseId };
+      if (matchedUser) {
+        payload.staffId = matchedUser.id;
+      } else {
+        payload.staffName = selectedStaffId.trim();
+      }
+      await apiRequest("cases.assign-staff", payload);
       await loadCase();
       setShowAssignStaff(false);
       setSelectedStaffId("");
     } catch (e) {
-      alert(e.message || "Ошибка назначения");
+      showError(e.message || "Ошибка назначения");
     } finally {
       setAssigningStaff(false);
     }
@@ -802,7 +837,7 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
       setShowAssignSupervisor(false);
       setSelectedSupervisorId("");
     } catch (e) {
-      alert(e.message || "Ошибка назначения");
+      showError(e.message || "Ошибка назначения");
     } finally {
       setAssigningSupervisor(false);
     }
@@ -817,7 +852,7 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
       setNewCommentImage("");
       await loadCase();
     } catch (e) {
-      alert(e.message || "Ошибка");
+      showError(e.message || "Ошибка");
     } finally {
       setSavingComment(false);
     }
@@ -832,19 +867,20 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
       setNewLinkLabel("");
       await loadCase();
     } catch (e) {
-      alert(e.message || "Ошибка");
+      showError(e.message || "Ошибка");
     } finally {
       setSavingLink(false);
     }
   };
 
   const handleDeleteLink = async (linkId) => {
-    if (!window.confirm("Удалить эту ссылку?")) return;
+    const confirmed = await showConfirm("Удалить эту ссылку?", { danger: true, confirmLabel: "Удалить" });
+    if (!confirmed) return;
     try {
       await apiRequest("cases.delete-link", { linkId });
       await loadCase();
     } catch (e) {
-      alert(e.message || "Ошибка удаления");
+      showError(e.message || "Ошибка удаления");
     }
   };
 
@@ -856,14 +892,14 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
       setEditingFields(null);
       await loadCase();
     } catch (e) {
-      alert(e.message || "Ошибка");
+      showError(e.message || "Ошибка");
     } finally {
       setSavingEdit(false);
     }
   };
 
   const handleExtendDeadline = async () => {
-    if (!extensionReason.trim()) { alert("Укажите основание продления (официальная бумага)"); return; }
+    if (!extensionReason.trim()) { showWarning("Укажите основание продления (официальная бумага)"); return; }
     setSavingExtension(true);
     try {
       await apiRequest("cases.extend-deadline", { caseId, reason: extensionReason, imageUrl: extensionImage || undefined });
@@ -872,14 +908,14 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
       setExtensionImage("");
       await loadCase();
     } catch (e) {
-      alert(e.message || "Ошибка продления");
+      showError(e.message || "Ошибка продления");
     } finally {
       setSavingExtension(false);
     }
   };
 
   const handleSetDeadline = async () => {
-    if (!newDeadlineValue) { alert("Выберите дату крайнего срока"); return; }
+    if (!newDeadlineValue) { showWarning("Выберите дату крайнего срока"); return; }
     setSavingDeadline(true);
     try {
       await apiRequest("cases.set-deadline", { caseId, deadline: newDeadlineValue });
@@ -887,23 +923,28 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
       setNewDeadlineValue("");
       await loadCase();
     } catch (e) {
-      alert(e.message || "Ошибка установки срока");
+      showError(e.message || "Ошибка установки срока");
     } finally {
       setSavingDeadline(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!window.confirm("Удалить это обращение?")) return;
+    const confirmed = await showConfirm("Удалить это обращение?", { danger: true, confirmLabel: "Удалить" });
+    if (!confirmed) return;
     try {
       await apiRequest("cases.delete", { caseId });
       onBack();
     } catch (e) {
-      alert(e.message || "Ошибка удаления");
+      showError(e.message || "Ошибка удаления");
     }
   };
 
-  if (loading) return React.createElement("div", { style: { color: C.textDim, padding: 40 } }, "Загрузка дела...");
+  if (loading) return React.createElement("div", { style: { padding: 20 } },
+    React.createElement(SkeletonCard, null),
+    React.createElement("div", { style: { height: 12 } }),
+    React.createElement(SkeletonCard, null),
+  );
   if (error) return React.createElement("div", { style: { color: C.danger, padding: 40 } }, error,
     React.createElement("button", { className: "btn-hover", style: { ...btn("ghost"), marginLeft: 12 }, onClick: onBack }, "Назад"),
   );
@@ -916,16 +957,23 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
   const sectionTitle = (text) => React.createElement("h3", { style: { fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 12 } }, text);
 
   return React.createElement("div", { className: "fade-in" },
+    // Breadcrumbs
+    typeof Breadcrumbs === "function" && React.createElement(Breadcrumbs, {
+      items: [
+        { label: "\u041E\u0431\u0440\u0430\u0449\u0435\u043D\u0438\u044F", onClick: onBack },
+        { label: d.regNumber },
+      ],
+    }),
     // Header
     React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 20, flexWrap: "wrap" } },
-      React.createElement("button", { className: "btn-hover", style: btn("ghost"), onClick: onBack }, "← Назад"),
+      React.createElement("button", { className: "btn-hover", style: btn("ghost"), onClick: onBack }, "\u2190 \u041D\u0430\u0437\u0430\u0434"),
       React.createElement("h1", { className: "resp-page-title", style: { ...S.pageTitle, margin: 0, fontSize: T.heading } }, d.regNumber),
       getCaseTypeBadge(d.caseType),
       getCaseStatusBadge(d.status),
       isOverdue(d) && React.createElement("span", {
         style: { fontSize: 13, color: C.danger, fontWeight: 700, background: C.danger + "22", padding: "3px 10px", borderRadius: 10 },
       }, "ПРОСРОЧЕНО"),
-      isManager && !isArchived && React.createElement("button", {
+      (isManager || isSupervisor) && !isArchived && React.createElement("button", {
         className: "btn-hover",
         style: { ...btn("subtle"), fontSize: 13 },
         onClick: () => setEditingFields({
@@ -1051,22 +1099,19 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
     // Assignment
     React.createElement("div", { style: sectionStyle },
       sectionTitle("Назначение"),
-      React.createElement("div", { style: { display: "flex", gap: 20, flexWrap: "wrap" } },
-        // Staff
+      React.createElement("div", { className: "case-info-row", style: { display: "flex", gap: 20, flexWrap: "wrap" } },
+        // Staff (free text ФИО)
         React.createElement("div", { style: { flex: 1, minWidth: 200 } },
           React.createElement("div", { style: { fontSize: 12, color: C.textMuted, marginBottom: 4 } }, "Следователь"),
           d.assignedStaffName
             ? React.createElement("div", { style: { fontSize: 15, fontWeight: 600, color: C.text } }, d.assignedStaffName)
             : React.createElement("div", { style: { fontSize: 14, color: C.textMuted } }, "Не назначен"),
-          isManager && !isArchived && React.createElement("div", { style: { marginTop: 6 } },
+          !isArchived && React.createElement("div", { style: { marginTop: 6 } },
             !showAssignStaff
-              ? React.createElement("button", { className: "btn-hover", style: { ...btn("subtle"), fontSize: 12 }, onClick: () => setShowAssignStaff(true) },
-                  d.assignedStaffId ? "Сменить" : "Назначить")
+              ? React.createElement("button", { className: "btn-hover", style: { ...btn("subtle"), fontSize: 12 }, onClick: () => { setShowAssignStaff(true); setSelectedStaffId(d.assignedStaffName || ""); } },
+                  d.assignedStaffId || d.assignedStaffName ? "Сменить" : "Назначить")
               : React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" } },
-                  React.createElement("select", { value: selectedStaffId, onChange: e => setSelectedStaffId(e.target.value), style: { ...S.select, fontSize: 13 } },
-                    React.createElement("option", { value: "" }, "Выберите сотрудника"),
-                    ...candidateUsers.map(u => React.createElement("option", { key: u.id, value: u.id }, (u.surname || "") + " " + (u.name || ""))),
-                  ),
+                  React.createElement("input", { type: "text", value: selectedStaffId, onChange: e => setSelectedStaffId(e.target.value), style: { ...S.input, fontSize: 13, minWidth: 200 }, placeholder: "ФИО следователя" }),
                   React.createElement("button", { className: "btn-hover", style: { ...btn("gold"), fontSize: 12 }, onClick: handleAssignStaff, disabled: assigningStaff }, "OK"),
                   React.createElement("button", { className: "btn-hover", style: { ...btn("ghost"), fontSize: 12 }, onClick: () => setShowAssignStaff(false) }, "✕"),
                 ),
@@ -1074,11 +1119,11 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
         ),
         // Supervisor
         React.createElement("div", { style: { flex: 1, minWidth: 200 } },
-          React.createElement("div", { style: { fontSize: 12, color: C.textMuted, marginBottom: 4 } }, "Надзирающий"),
+          React.createElement("div", { style: { fontSize: 12, color: C.textMuted, marginBottom: 4 } }, "Прокурор"),
           d.supervisorName
             ? React.createElement("div", { style: { fontSize: 15, fontWeight: 600, color: C.text } }, d.supervisorName)
             : React.createElement("div", { style: { fontSize: 14, color: C.textMuted } }, "Не назначен"),
-          isManager && !isArchived && React.createElement("div", { style: { marginTop: 6 } },
+          !isArchived && React.createElement("div", { style: { marginTop: 6 } },
             !showAssignSupervisor
               ? React.createElement("button", { className: "btn-hover", style: { ...btn("subtle"), fontSize: 12 }, onClick: () => setShowAssignSupervisor(true) },
                   d.supervisorId ? "Сменить" : "Назначить")
@@ -1105,10 +1150,11 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
       sectionTitle("Контроль сроков"),
       React.createElement("div", { style: { display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 10 } },
         (() => {
+          const isTerminalCase = CASES_TERMINAL_STATUSES_SET.has(d.status);
           const days = daysUntilDeadline(d);
           const over = isOverdue(d);
-          const deadlineColor = !d.deadline ? C.textMuted : over ? C.danger : days !== null && days <= 3 ? "#e67e22" : days !== null && days <= 5 ? "#d69a2d" : C.success;
-          const deadlineText = !d.deadline ? "Не установлен" : d.deadline + (over ? " (ПРОСРОЧЕНО)" : days !== null && days <= 3 ? ` (осталось ${days} дн.!)` : days !== null && days <= 5 ? ` (осталось ${days} дн.)` : "");
+          const deadlineColor = !d.deadline ? C.textMuted : isTerminalCase ? C.textMuted : over ? C.danger : days !== null && days <= 3 ? "#e67e22" : days !== null && days <= 5 ? "#d69a2d" : C.success;
+          const deadlineText = !d.deadline ? "Не установлен" : isTerminalCase ? d.deadline : d.deadline + (over ? " (ПРОСРОЧЕНО)" : days !== null && days <= 3 ? ` (осталось ${days} дн.!)` : days !== null && days <= 5 ? ` (осталось ${days} дн.)` : "");
           return React.createElement("div", null,
             React.createElement("div", { style: { fontSize: 12, color: C.textMuted, marginBottom: 2 } }, "Крайний срок"),
             React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: deadlineColor, padding: "2px 8px", borderRadius: 6, background: deadlineColor + "18", display: "inline-block" } }, deadlineText),
@@ -1170,7 +1216,7 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
     ),
 
     // Status transition
-    allowedTransitions.length > 0 && (isManager || isAssigned) && React.createElement("div", { style: { ...sectionStyle, borderLeft: "4px solid " + C.warning } },
+    allowedTransitions.length > 0 && (isManager || isAssigned || isSupervisor) && React.createElement("div", { style: { ...sectionStyle, borderLeft: "4px solid " + C.warning } },
       sectionTitle("Изменение статуса"),
       React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 } },
         allowedTransitions.map(st =>
@@ -1272,7 +1318,7 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
             try {
               await apiRequest("cases.add-link", { caseId, url, linkType: newLinkType || "material", label: name || "Изображение" });
               await loadCase();
-            } catch (e) { alert(e.message || "Ошибка"); }
+            } catch (e) { showError(e.message || "Ошибка"); }
           },
         }),
       ),
@@ -1287,7 +1333,7 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
               React.createElement("b", null, c.authorName), " · ", formatDateTime(c.createdAt),
               c.isServiceNote && React.createElement("span", { style: { marginLeft: 8, color: C.warning, fontSize: 11 } }, "Служебная пометка"),
             ),
-            c.body && React.createElement("div", { style: { fontSize: 14, color: C.text, whiteSpace: "pre-wrap" } }, c.body),
+            c.body && React.createElement("div", { style: { fontSize: 14, color: C.text, whiteSpace: "pre-wrap" } }, renderTextWithLinks(c.body)),
             c.imageUrl && React.createElement("a", { href: c.imageUrl, target: "_blank", rel: "noopener" },
               React.createElement("img", { src: c.imageUrl, alt: "Вложение", style: { maxWidth: 300, maxHeight: 180, borderRadius: 8, marginTop: 6, border: "1px solid " + C.border, cursor: "pointer" } }),
             ),
@@ -1364,8 +1410,16 @@ function CaseAnalyticsDashboard({ user, users, factions, checksMeta, enabledSubj
     })();
   }, [subjectFilter]);
 
-  if (loading) return React.createElement("div", { style: { color: C.textDim, padding: 20 } }, "Загрузка аналитики...");
-  if (!analytics) return React.createElement("div", { style: { color: C.textMuted, padding: 20 } }, "Нет данных для аналитики");
+  if (loading) return React.createElement("div", { style: { padding: 20 } },
+    React.createElement(SkeletonCard, null),
+    React.createElement("div", { style: { height: 8 } }),
+    React.createElement(SkeletonTable, { rows: 4, cols: 3 }),
+  );
+  if (!analytics) return React.createElement(EmptyState, {
+    icon: "\uD83D\uDCCA",
+    title: "\u041D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445 \u0434\u043B\u044F \u0430\u043D\u0430\u043B\u0438\u0442\u0438\u043A\u0438",
+    description: "\u0414\u0430\u043D\u043D\u044B\u0435 \u043F\u043E\u044F\u0432\u044F\u0442\u0441\u044F \u043F\u043E\u0441\u043B\u0435 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438 \u043F\u0435\u0440\u0432\u044B\u0445 \u043E\u0431\u0440\u0430\u0449\u0435\u043D\u0438\u0439",
+  });
 
   const a = analytics;
 
@@ -1376,13 +1430,27 @@ function CaseAnalyticsDashboard({ user, users, factions, checksMeta, enabledSubj
     minWidth: 120,
   });
 
+  const handleExportCsv = function() {
+    if (!a) return;
+    var headers = ["\u0421\u0442\u0430\u0442\u0443\u0441", "\u041A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E"];
+    var rows = Object.entries(a.byStatus || {}).filter(function(e) { return e[1] > 0; }).map(function(e) {
+      return [(CASE_STATUSES[e[0]] || {}).label || e[0], e[1]];
+    });
+    if (typeof exportToCsv === "function") exportToCsv("cases_analytics.csv", headers, rows);
+  };
+
   return React.createElement("div", null,
-    // Subject filter for FEDERAL/ADMIN
-    isFederalOrAdmin && React.createElement("div", { style: { marginBottom: 16 } },
-      React.createElement("select", { value: subjectFilter, onChange: e => setSubjectFilter(e.target.value), style: S.select },
-        React.createElement("option", { value: "" }, "Все субъекты"),
+    // Subject filter + export
+    React.createElement("div", { style: { display: "flex", gap: 12, marginBottom: 16, alignItems: "center", flexWrap: "wrap" } },
+      isFederalOrAdmin && React.createElement("select", { value: subjectFilter, onChange: e => setSubjectFilter(e.target.value), style: { ...S.select, flex: "0 0 auto", width: "auto", minWidth: 180 } },
+        React.createElement("option", { value: "" }, "\u0412\u0441\u0435 \u0441\u0443\u0431\u044A\u0435\u043A\u0442\u044B"),
         ...enabledSubjects.map(s => React.createElement("option", { key: s, value: s }, s)),
       ),
+      React.createElement("button", {
+        className: "btn-hover",
+        style: { ...btn("subtle"), fontSize: 13 },
+        onClick: handleExportCsv,
+      }, "\u0421\u043A\u0430\u0447\u0430\u0442\u044C CSV"),
     ),
 
     // Stat boxes
@@ -1503,7 +1571,11 @@ function statBox(label, value, color) {
       flex: "1 1 110px",
     },
   },
-    React.createElement("div", { style: { fontSize: T.stat, fontWeight: 700, color } }, value),
+    React.createElement("div", { style: { fontSize: T.stat, fontWeight: 700, color } },
+      typeof CountUp === "function" && typeof value === "number"
+        ? React.createElement(CountUp, { value: value })
+        : value
+    ),
     React.createElement("div", { style: { fontSize: 12, color: C.textMuted, marginTop: 4 } }, label),
   );
 }
