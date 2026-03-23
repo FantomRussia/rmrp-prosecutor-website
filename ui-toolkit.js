@@ -429,6 +429,7 @@ var __hotkeyRegistry = {};
 function useHotkey(key, callback, deps) {
   React.useEffect(function() {
     var handler = function(e) {
+      if (!e.key) return;
       var combo = "";
       if (e.ctrlKey || e.metaKey) combo += "ctrl+";
       if (e.shiftKey) combo += "shift+";

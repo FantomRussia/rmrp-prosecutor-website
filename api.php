@@ -1423,6 +1423,55 @@ try {
         ]);
     }
 
+    if ($action === 'user-reset-password') {
+        $user = require_auth($state);
+        $body = read_json_body();
+        $targetUserId = trim((string)($body['userId'] ?? ''));
+
+        if ($targetUserId === '') {
+            respond(422, ['ok' => false, 'error' => 'Не указан пользователь']);
+        }
+
+        $targetUser = find_user_by_id($state['users'], $targetUserId);
+        if (!$targetUser) {
+            respond(404, ['ok' => false, 'error' => 'Пользователь не найден']);
+        }
+
+        $isBoss = ($user['role'] ?? '') === 'BOSS'
+            && ($user['subject'] ?? '') === ($targetUser['subject'] ?? '')
+            && in_array($targetUser['role'] ?? '', ['STAFF', 'SENIOR_STAFF', 'BOSS'], true);
+
+        if (!has_system_admin_access($user) && !$isBoss) {
+            respond(403, ['ok' => false, 'error' => 'Недостаточно прав для сброса пароля']);
+        }
+
+        $newPassword = str_pad((string)random_int(1000, 9999), 4, '0', STR_PAD_LEFT);
+        $hashedPassword = hash_password($newPassword);
+
+        $users = $state['users'];
+        foreach ($users as $i => $u) {
+            if (($u['id'] ?? null) === $targetUserId) {
+                $users[$i]['password'] = $hashedPassword;
+                break;
+            }
+        }
+        $state['users'] = $users;
+        save_state_key($pdo, 'users', $state['users']);
+
+        append_audit(
+            $pdo,
+            $state,
+            sprintf('Сброшен пароль пользователя: %s %s', $targetUser['surname'] ?? '', $targetUser['name'] ?? ''),
+            $user['id'] ?? null
+        );
+
+        respond(200, [
+            'ok' => true,
+            'userId' => $targetUserId,
+            'newPassword' => $newPassword,
+        ]);
+    }
+
     if ($action === 'submit-registration') {
         $body = read_json_body();
         $fullName = trim((string)($body['login'] ?? ''));

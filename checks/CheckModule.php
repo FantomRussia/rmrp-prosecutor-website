@@ -4399,6 +4399,7 @@ define('CASES_STATUS_TRANSITIONS', [
 ]);
 
 define('CASES_TERMINAL_STATUSES', ['completed', 'archive', 'check_terminated', 'criminal_case_refused', 'prosecution_refused']);
+define('CASES_NO_DEADLINE_STATUSES', ['sent_to_court', 'verdict_issued', 'verdict_guilty', 'verdict_partial', 'verdict_acquitted', 'completed', 'archive', 'check_terminated', 'criminal_case_refused', 'prosecution_refused']);
 
 define('CASES_SEVERITY', [
     'minor'          => ['label' => 'Небольшой тяжести', 'days' => 6],
@@ -5182,7 +5183,8 @@ function cases_handle_list(PDO $pdo, array &$state): void
             $sql .= ' AND supervisor_id = :sv_uid AND status NOT IN (\'completed\', \'check_terminated\', \'criminal_case_refused\')';
             $params[':sv_uid'] = $user['id'];
         } elseif ($tab === 'overdue') {
-            $sql .= ' AND deadline IS NOT NULL AND deadline < CURDATE() AND status NOT IN (\'completed\', \'check_terminated\', \'criminal_case_refused\', \'prosecution_refused\')';
+            $noDeadline = implode(',', array_map(fn($s) => "'$s'", CASES_NO_DEADLINE_STATUSES));
+            $sql .= " AND deadline IS NOT NULL AND deadline < CURDATE() AND status NOT IN ($noDeadline)";
         }
     }
 
@@ -5780,11 +5782,11 @@ function cases_handle_analytics(PDO $pdo, array &$state): void
     }
 
     $subjectFilter = '';
-    if (in_array($user['role'] ?? '', ['BOSS', 'SENIOR_STAFF'], true)) {
+    if (in_array($user['role'] ?? '', ['BOSS', 'SENIOR_STAFF', 'USP'], true)) {
         $subjectFilter = $user['subject'] ?? '';
     }
     $body = read_json_body();
-    if (!empty($body['subject']) && (in_array($user['role'] ?? '', ['FEDERAL', 'USP'], true) || has_system_admin_access($user))) {
+    if (!empty($body['subject']) && (in_array($user['role'] ?? '', ['FEDERAL'], true) || has_system_admin_access($user))) {
         $subjectFilter = trim((string)$body['subject']);
     }
 
@@ -5837,7 +5839,7 @@ function cases_handle_analytics(PDO $pdo, array &$state): void
 
         if (!in_array($st, CASES_TERMINAL_STATUSES, true)) {
             $totalActive++;
-            if (!empty($r['deadline'])) {
+            if (!in_array($st, CASES_NO_DEADLINE_STATUSES, true) && !empty($r['deadline'])) {
                 $dl = new DateTime($r['deadline']);
                 if ($dl < $now) {
                     $overdueCount++;
@@ -6048,7 +6050,7 @@ function cases_build_bootstrap_meta(PDO $pdo, array $state, ?array $user): array
         if (($r['supervisor_id'] ?? '') === $uid && !in_array($r['status'], CASES_TERMINAL_STATUSES, true)) $supervised++;
         if (!in_array($r['status'], CASES_TERMINAL_STATUSES, true)) {
             $active++;
-            if (!empty($r['deadline'])) {
+            if (!in_array($r['status'], CASES_NO_DEADLINE_STATUSES, true) && !empty($r['deadline'])) {
                 $dl = new DateTime($r['deadline']);
                 if ($dl < $now) {
                     $overdue++;

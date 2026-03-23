@@ -62,7 +62,7 @@ const CASE_STATUS_TRANSITIONS = {
   archive:                   [],
 };
 
-const CASE_TYPES = { appeal: "Обращение", complaint: "Жалоба" };
+const CASE_TYPES = { appeal: "Жалоба" };
 const CASE_SOURCES = { forum: "Форум", oral: "Устное обращение", sk_transfer: "Передано из СК", fsb_transfer: "Передано из ФСБ", other: "Иной источник" };
 const CASE_LINK_TYPES = { material: "Материалы", lawsuit: "Иск", procedural: "Процессуальные", other: "Прочее" };
 const CASE_SEVERITY = {
@@ -172,13 +172,13 @@ function getCaseTypeBadge(caseType) {
       color: isComplaint ? "#b34739" : "#0077b6",
       border: "1px solid " + (isComplaint ? "#b3473944" : "#0077b644"),
     },
-  }, isComplaint ? "Жалоба" : "Обращение");
+  }, "Жалоба");
 }
 
 function isOverdue(item) {
   if (!item.deadline) return false;
-  const terminal = ["completed", "archive", "check_terminated", "criminal_case_refused", "prosecution_refused"];
-  if (terminal.includes(item.status)) return false;
+  const noDeadline = ["sent_to_court", "verdict_issued", "verdict_guilty", "verdict_partial", "verdict_acquitted", "completed", "archive", "check_terminated", "criminal_case_refused", "prosecution_refused"];
+  if (noDeadline.includes(item.status)) return false;
   return new Date(item.deadline) < new Date();
 }
 
@@ -276,7 +276,7 @@ function PageCases({ user, users, factions, casesMeta, checksMeta, onRefresh, on
   if (tab === "analytics") {
     return React.createElement("div", { className: "fade-in" },
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 16, marginBottom: 20, flexWrap: "wrap" } },
-        React.createElement("h1", { className: "resp-page-title", style: { ...S.pageTitle, margin: 0 } }, "Обращения и жалобы"),
+        React.createElement("h1", { className: "resp-page-title", style: { ...S.pageTitle, margin: 0 } }, "Жалобы"),
         React.createElement("button", {
           className: "btn-hover",
           style: btn("ghost"),
@@ -307,7 +307,7 @@ function PageCases({ user, users, factions, casesMeta, checksMeta, onRefresh, on
   return React.createElement("div", { className: "fade-in" },
     // Header
     React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 20, flexWrap: "wrap" } },
-      React.createElement("h1", { className: "resp-page-title", style: { ...S.pageTitle, margin: 0 } }, "Обращения и жалобы"),
+      React.createElement("h1", { className: "resp-page-title", style: { ...S.pageTitle, margin: 0 } }, "Жалобы"),
       canCreate && React.createElement("button", {
         className: "btn-hover",
         style: btn("gold"),
@@ -540,7 +540,7 @@ function CaseCreateModal({ user, users, factions, enabledSubjects, onClose, onCr
     if (!form.source) return "Выберите источник";
     if (!form.description.trim()) return "Введите описание";
     if (form.source === "forum" && !form.forumLink.trim()) return "Укажите ссылку на форум";
-    if (form.source === "oral" && !form.videoLink.trim()) return "Укажите ссылку на видео регистрации обращения";
+    if (form.source === "oral" && !form.videoLink.trim()) return "Укажите ссылку на видео регистрации жалобы";
     return "";
   };
 
@@ -564,7 +564,7 @@ function CaseCreateModal({ user, users, factions, enabledSubjects, onClose, onCr
   const labelSt = { ...S.label, marginBottom: 4 };
 
   return React.createElement(Modal, { onClose, maxWidth: 640, persistent: true },
-    React.createElement("h2", { style: { ...S.cardTitle, marginBottom: 20 } }, "Регистрация обращения / жалобы"),
+    React.createElement("h2", { style: { ...S.cardTitle, marginBottom: 20 } }, "Регистрация жалобы"),
 
     // Subject (for FEDERAL/ADMIN/GP)
     isFederalOrAdmin && React.createElement("div", { style: fieldStyle },
@@ -575,14 +575,8 @@ function CaseCreateModal({ user, users, factions, enabledSubjects, onClose, onCr
       ),
     ),
 
-    // Type
-    React.createElement("div", { style: fieldStyle },
-      React.createElement("label", { style: labelSt }, "Тип *"),
-      React.createElement("select", { value: form.caseType, onChange: e => update("caseType", e.target.value), style: S.select },
-        React.createElement("option", { value: "appeal" }, "Обращение"),
-        React.createElement("option", { value: "complaint" }, "Жалоба"),
-      ),
-    ),
+    // Type (hidden — only appeal now)
+
 
     // Source
     React.createElement("div", { style: fieldStyle },
@@ -609,12 +603,12 @@ function CaseCreateModal({ user, users, factions, enabledSubjects, onClose, onCr
 
     // Video link for oral
     form.source === "oral" && React.createElement("div", { style: fieldStyle },
-      React.createElement("label", { style: labelSt }, "Ссылка на видео регистрации обращения *"),
+      React.createElement("label", { style: labelSt }, "Ссылка на видео регистрации жалобы *"),
       React.createElement("input", { type: "text", value: form.videoLink, onChange: e => update("videoLink", e.target.value), style: S.input, placeholder: "https://youtube.com/... или прямая ссылка на видео" }),
     ),
 
-    // Applicant
-    React.createElement("div", { style: fieldStyle },
+    // Applicant (hidden for SK/FSB transfers)
+    form.source !== "sk_transfer" && form.source !== "fsb_transfer" && React.createElement("div", { style: fieldStyle },
       React.createElement("label", { style: labelSt }, "Заявитель"),
       React.createElement("input", { type: "text", value: form.applicantName, onChange: e => update("applicantName", e.target.value), style: S.input, placeholder: "ФИО или никнейм" }),
     ),
@@ -622,7 +616,7 @@ function CaseCreateModal({ user, users, factions, enabledSubjects, onClose, onCr
     // Description
     React.createElement("div", { style: fieldStyle },
       React.createElement("label", { style: labelSt }, "Описание *"),
-      React.createElement("textarea", { value: form.description, onChange: e => update("description", e.target.value), style: { ...S.textarea, minHeight: 80 }, placeholder: "Суть обращения или жалобы" }),
+      React.createElement("textarea", { value: form.description, onChange: e => update("description", e.target.value), style: { ...S.textarea, minHeight: 80 }, placeholder: "Суть жалобы" }),
     ),
 
     // Incident date
@@ -657,9 +651,9 @@ function CaseCreateModal({ user, users, factions, enabledSubjects, onClose, onCr
       ),
     ),
 
-    // SK executor name (when source is sk_transfer or fsb_transfer)
+    // SK/FSB executor name
     (form.source === "sk_transfer" || form.source === "fsb_transfer") && React.createElement("div", { style: fieldStyle },
-      React.createElement("label", { style: labelSt }, "Следователь (ФИО сотрудника СК)"),
+      React.createElement("label", { style: labelSt }, form.source === "fsb_transfer" ? "Следователь (ФИО сотрудника ФСБ)" : "Следователь (ФИО сотрудника СК)"),
       React.createElement("input", { type: "text", value: form.skExecutorName, onChange: e => update("skExecutorName", e.target.value), style: S.input, placeholder: "Фамилия Имя Отчество" }),
     ),
 
@@ -930,7 +924,7 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
   };
 
   const handleDelete = async () => {
-    const confirmed = await showConfirm("Удалить это обращение?", { danger: true, confirmLabel: "Удалить" });
+    const confirmed = await showConfirm("Удалить эту жалобу?", { danger: true, confirmLabel: "Удалить" });
     if (!confirmed) return;
     try {
       await apiRequest("cases.delete", { caseId });
@@ -973,7 +967,7 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
       isOverdue(d) && React.createElement("span", {
         style: { fontSize: 13, color: C.danger, fontWeight: 700, background: C.danger + "22", padding: "3px 10px", borderRadius: 10 },
       }, "ПРОСРОЧЕНО"),
-      (isManager || isSupervisor) && !isArchived && React.createElement("button", {
+      (isManager || isAssigned || isSupervisor || isCreator) && !isArchived && React.createElement("button", {
         className: "btn-hover",
         style: { ...btn("subtle"), fontSize: 13 },
         onClick: () => setEditingFields({
@@ -993,7 +987,7 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
 
     // Edit modal
     editingFields && React.createElement(Modal, { onClose: () => setEditingFields(null), maxWidth: 640, persistent: true },
-      React.createElement("h2", { style: { ...S.cardTitle, marginBottom: 20 } }, "Редактирование обращения"),
+      React.createElement("h2", { style: { ...S.cardTitle, marginBottom: 20 } }, "Редактирование жалобы"),
       React.createElement("div", { style: { marginBottom: 14 } },
         React.createElement("label", { style: { ...S.label, marginBottom: 4 } }, "Описание"),
         React.createElement("textarea", { value: editingFields.description, onChange: e => setEditingFields(prev => ({ ...prev, description: e.target.value })), style: { ...S.textarea, minHeight: 80 } }),
@@ -1055,8 +1049,8 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
         React.createElement("input", { type: "date", value: editingFields.deadline, onChange: e => setEditingFields(prev => ({ ...prev, deadline: e.target.value })), style: S.input }),
       ),
       React.createElement("div", { style: { marginBottom: 14 } },
-        React.createElement("label", { style: { ...S.label, marginBottom: 4 } }, "Сотрудник СК (исполнитель)"),
-        React.createElement("input", { type: "text", value: editingFields.skExecutorName, onChange: e => setEditingFields(prev => ({ ...prev, skExecutorName: e.target.value })), style: S.input, placeholder: "ФИО сотрудника СК" }),
+        React.createElement("label", { style: { ...S.label, marginBottom: 4 } }, d.source === "fsb_transfer" ? "Сотрудник ФСБ (исполнитель)" : "Сотрудник СК (исполнитель)"),
+        React.createElement("input", { type: "text", value: editingFields.skExecutorName, onChange: e => setEditingFields(prev => ({ ...prev, skExecutorName: e.target.value })), style: S.input, placeholder: d.source === "fsb_transfer" ? "ФИО сотрудника ФСБ" : "ФИО сотрудника СК" }),
       ),
       React.createElement("div", { style: { marginBottom: 14 } },
         React.createElement("label", { style: { ...S.label, marginBottom: 4 } }, "Комментарий / служебная пометка"),
@@ -1139,7 +1133,7 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
         ),
         // SK executor name
         d.skExecutorName && React.createElement("div", { style: { flex: 1, minWidth: 200 } },
-          React.createElement("div", { style: { fontSize: 12, color: C.textMuted, marginBottom: 4 } }, "Сотрудник СК (исполнитель)"),
+          React.createElement("div", { style: { fontSize: 12, color: C.textMuted, marginBottom: 4 } }, d.source === "fsb_transfer" ? "Сотрудник ФСБ (исполнитель)" : "Сотрудник СК (исполнитель)"),
           React.createElement("div", { style: { fontSize: 15, fontWeight: 600, color: C.text } }, d.skExecutorName),
         ),
       ),
@@ -1216,7 +1210,7 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
     ),
 
     // Status transition
-    allowedTransitions.length > 0 && (isManager || isAssigned || isSupervisor) && React.createElement("div", { style: { ...sectionStyle, borderLeft: "4px solid " + C.warning } },
+    allowedTransitions.length > 0 && (isManager || isAssigned || isSupervisor || isCreator) && React.createElement("div", { style: { ...sectionStyle, borderLeft: "4px solid " + C.warning } },
       sectionTitle("Изменение статуса"),
       React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 } },
         allowedTransitions.map(st =>
@@ -1240,8 +1234,8 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
       ),
       // SK executor name (for criminal_case_opened transition)
       allowedTransitions.includes("criminal_case_opened") && React.createElement("div", { style: { marginBottom: 8 } },
-        React.createElement("label", { style: { ...S.label, fontSize: 12 } }, "ФИО сотрудника СК (исполнитель)"),
-        React.createElement("input", { type: "text", value: skExecutorName, onChange: e => setSkExecutorName(e.target.value), style: S.input, placeholder: "Фамилия Имя Отчество сотрудника СК" }),
+        React.createElement("label", { style: { ...S.label, fontSize: 12 } }, d.source === "fsb_transfer" ? "ФИО сотрудника ФСБ (исполнитель)" : "ФИО сотрудника СК (исполнитель)"),
+        React.createElement("input", { type: "text", value: skExecutorName, onChange: e => setSkExecutorName(e.target.value), style: S.input, placeholder: d.source === "fsb_transfer" ? "Фамилия Имя Отчество сотрудника ФСБ" : "Фамилия Имя Отчество сотрудника СК" }),
       ),
       React.createElement("div", { style: { marginBottom: 8 } },
         React.createElement("label", { style: { ...S.label, fontSize: 12 } }, "Комментарий к переходу"),
@@ -1304,7 +1298,7 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
             );
           })
         : React.createElement("div", { style: { color: C.textMuted, fontSize: 14 } }, "Ссылки не добавлены"),
-      (isManager || isAssigned) && !isArchived && React.createElement("div", { style: { marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" } },
+      (isManager || isAssigned || isSupervisor || isCreator) && !isArchived && React.createElement("div", { style: { marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" } },
         React.createElement("select", { value: newLinkType, onChange: e => setNewLinkType(e.target.value), style: { ...S.select, fontSize: 12, minWidth: 100 } },
           ...Object.entries(CASE_LINK_TYPES).map(([code, label]) => React.createElement("option", { key: code, value: code }, label)),
         ),
@@ -1339,7 +1333,7 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
             ),
           ))
         : React.createElement("div", { style: { color: C.textMuted, fontSize: 14, marginBottom: 10 } }, "Комментариев пока нет"),
-      (isManager || isAssigned || isSupervisor) && !isArchived && React.createElement("div", null,
+      (isManager || isAssigned || isSupervisor || isCreator) && !isArchived && React.createElement("div", null,
         newCommentImage && React.createElement("div", { style: { marginBottom: 6, position: "relative", display: "inline-block" } },
           React.createElement("img", { src: newCommentImage, alt: "Вложение", style: { maxWidth: 200, maxHeight: 120, borderRadius: 8, border: "1px solid " + C.border } }),
           React.createElement("button", {
@@ -1395,12 +1389,13 @@ function CaseAnalyticsDashboard({ user, users, factions, checksMeta, enabledSubj
   const [loading, setLoading] = useState(true);
   const [subjectFilter, setSubjectFilter] = useState("");
   const isFederalOrAdmin = user?.role === "FEDERAL" || hasSystemAdminAccess(user);
+  const isSubjectScoped = user?.role === "BOSS" || user?.role === "SENIOR_STAFF" || user?.role === "USP";
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        const res = await apiRequest("cases.analytics", { subject: subjectFilter });
+        const res = await apiRequest("cases.analytics", { subject: isSubjectScoped ? "" : subjectFilter });
         setAnalytics(res.data);
       } catch (e) {
         setAnalytics(null);
@@ -1442,7 +1437,7 @@ function CaseAnalyticsDashboard({ user, users, factions, checksMeta, enabledSubj
   return React.createElement("div", null,
     // Subject filter + export
     React.createElement("div", { style: { display: "flex", gap: 12, marginBottom: 16, alignItems: "center", flexWrap: "wrap" } },
-      isFederalOrAdmin && React.createElement("select", { value: subjectFilter, onChange: e => setSubjectFilter(e.target.value), style: { ...S.select, flex: "0 0 auto", width: "auto", minWidth: 180 } },
+      isFederalOrAdmin && !isSubjectScoped && React.createElement("select", { value: subjectFilter, onChange: e => setSubjectFilter(e.target.value), style: { ...S.select, flex: "0 0 auto", width: "auto", minWidth: 180 } },
         React.createElement("option", { value: "" }, "\u0412\u0441\u0435 \u0441\u0443\u0431\u044A\u0435\u043A\u0442\u044B"),
         ...enabledSubjects.map(s => React.createElement("option", { key: s, value: s }, s)),
       ),
@@ -1458,8 +1453,7 @@ function CaseAnalyticsDashboard({ user, users, factions, checksMeta, enabledSubj
       statBox("Всего дел", a.total, C.accent),
       statBox("В работе", a.totalActive, C.warning),
       statBox("Просрочено", a.overdue, C.danger),
-      statBox("Обращений", a.byType?.appeal || 0, "#0077b6"),
-      statBox("Жалоб", a.byType?.complaint || 0, "#b34739"),
+      statBox("Жалоб", a.byType?.appeal || 0, "#0077b6"),
     ),
 
     // By status
@@ -1534,7 +1528,6 @@ function CaseAnalyticsDashboard({ user, users, factions, checksMeta, enabledSubj
             React.createElement("tr", null,
               React.createElement("th", { style: S.th }, "Фракция"),
               React.createElement("th", { style: S.th }, "Всего"),
-              React.createElement("th", { style: S.th }, "Жалоб"),
               React.createElement("th", { style: S.th }, "В следствии"),
               React.createElement("th", { style: S.th }, "В суде"),
               React.createElement("th", { style: S.th }, "Приговоры"),
@@ -1547,7 +1540,6 @@ function CaseAnalyticsDashboard({ user, users, factions, checksMeta, enabledSubj
               return React.createElement("tr", { key: fid, className: "row-hover" },
                 React.createElement("td", { style: S.td, "data-label": "Фракция" }, faction?.name || fid),
                 React.createElement("td", { style: S.td, "data-label": "Всего" }, stats.total),
-                React.createElement("td", { style: S.td, "data-label": "Жалоб" }, stats.complaints),
                 React.createElement("td", { style: S.td, "data-label": "В следствии" }, stats.toInvestigation),
                 React.createElement("td", { style: S.td, "data-label": "В суде" }, stats.toCourt),
                 React.createElement("td", { style: S.td, "data-label": "Приговоры" }, stats.verdicts),

@@ -181,9 +181,9 @@
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel" src="ui-toolkit.js?v=20260323a"></script>
+<script type="text/babel" src="ui-toolkit.js?v=20260323b"></script>
 <script type="text/babel" src="checks-ui.js?v=20260318c"></script>
-<script type="text/babel" src="cases-ui.js?v=20260319b"></script>
+<script type="text/babel" src="cases-ui.js?v=20260323a"></script>
 <script type="text/babel">
 const { useState, useEffect, useCallback, useMemo, useRef } = React;
 
@@ -272,7 +272,7 @@ const DEFAULT_ACTIVITY_EVENT_TYPES = [
   { id: "warning", label: "Назначение предупреждения", kind: "person", icon: "⚠️", color: "#ffd166" },
   { id: "disciplinary", label: "Дисциплинарное взыскание", kind: "person", icon: "📛", color: "#ff7b7b" },
   { id: "official_visit", label: "Официальный визит / лекция", kind: "visit", icon: "🎓", color: "#8fc0ff" },
-  { id: "news", label: "Новости", kind: "news", icon: "📰", color: "#4ea8de" },
+  { id: "news", label: "Новость (пресс-служба)", kind: "news", icon: "📰", color: "#4ea8de", internal: true },
   { id: "duty", label: "Дежурство", kind: "duty", icon: "🛡", color: "#e67e22" },
 ];
 const DEFAULT_ACTIVITY_SETTINGS = {
@@ -472,7 +472,7 @@ function getNavItemsForUser(user, activitySettings = DEFAULT_ACTIVITY_SETTINGS, 
     }
   }
   if (canAccessCasesModule(user, checksMeta)) {
-    const casesItem = { id: "cases", label: "Обращения", icon: "📨" };
+    const casesItem = { id: "cases", label: "Жалобы", icon: "📨" };
     if (!baseItems.some(item => item.id === "cases")) {
       const anchorIndex = baseItems.findIndex(item => item.id === "checks");
       baseItems = [...baseItems];
@@ -699,6 +699,7 @@ function normalizeActivitySettings(settings, fallback = DEFAULT_ACTIVITY_SETTING
       kind: ["visit", "news", "duty"].includes(item.kind) ? item.kind : "person",
       icon: item.icon || (fallback.eventTypes[index]?.icon || "•"),
       color: item.color || (fallback.eventTypes[index]?.color || "#5fa8ff"),
+      internal: Boolean(item.internal),
     }))
     .filter(item => item.label);
   return {
@@ -832,6 +833,10 @@ function isPersonActivityEvent(event, activitySettings = DEFAULT_ACTIVITY_SETTIN
   return getActivityTypeMeta(event?.type, activitySettings).kind === "person";
 }
 
+function isInternalActivityEvent(event, activitySettings = DEFAULT_ACTIVITY_SETTINGS) {
+  return getActivityTypeMeta(event?.type, activitySettings).internal === true;
+}
+
 function getActivityEventDate(event) {
   return event?.eventDate || event?.updatedAt || event?.createdAt || null;
 }
@@ -954,6 +959,7 @@ function buildPilotMetricsSnapshot(user, activityEvents, factions, periodKey, ac
   let eventsWithoutLinks = 0;
 
   relevantEvents.forEach(event => {
+    if (isInternalActivityEvent(event, activitySettings)) return;
     typeCounts[event.type] = (typeCounts[event.type] || 0) + 1;
     if (!event.links || event.links.length === 0) eventsWithoutLinks += 1;
     if (event.factionId) uniqueFactions.add(event.factionId);
@@ -1272,7 +1278,7 @@ function getPilotFactionStats(activityEvents, factions, activitySettings = DEFAU
       let visits = 0;
       let closedCases = 0;
 
-      factionEvents.forEach(event => {
+      factionEvents.filter(event => !isInternalActivityEvent(event, activitySettings)).forEach(event => {
         if (isVisitActivityEvent(event, activitySettings)) {
           visits += 1;
           return;
@@ -1344,11 +1350,12 @@ function getPilotFactionSummaryRows(activityEvents, factions, periodKey, activit
       let lastActivityAt = null;
 
       factionEvents.forEach(event => {
-        typeCounts[event.type] = (typeCounts[event.type] || 0) + 1;
         const eventDate = getActivityEventDate(event);
         if (!lastActivityAt || new Date(eventDate || 0) > new Date(lastActivityAt || 0)) {
           lastActivityAt = eventDate;
         }
+        if (isInternalActivityEvent(event, activitySettings)) return;
+        typeCounts[event.type] = (typeCounts[event.type] || 0) + 1;
         if (isVisitActivityEvent(event, activitySettings)) {
           visits += 1;
           return;
@@ -1469,7 +1476,7 @@ function getPilotQuickActions(user) {
   if (user?.role === "STAFF") {
     return [
       { id: "my-report", label: "Журнал деятельности", icon: "📓", description: "Фиксация задержаний, взысканий и визитов." },
-      { id: "cases", label: "Обращения", icon: "📨", description: "Обращения и жалобы граждан." },
+      { id: "cases", label: "Жалобы", icon: "📨", description: "Жалобы граждан." },
     ];
   }
   if (user?.role === "BOSS") {
@@ -4402,7 +4409,7 @@ function HomeMonthCalendarCard({ user, checksMeta, onNavigate }) {
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
                 <span style={{ fontWeight: 700 }}>{event.title || "Событие"}</span>
                 <span style={{ ...badge(event.entityType === "check" ? C.gold : event.entityType === "case" ? C.success : C.blue), flexShrink: 0 }}>
-                  {event.statusLabel || (event.entityType === "check" ? "Проверка" : event.entityType === "case" ? "Обращение" : "Событие")}
+                  {event.statusLabel || (event.entityType === "check" ? "Проверка" : event.entityType === "case" ? "Жалоба" : "Событие")}
                 </span>
               </div>
               <div style={{ marginTop: 6, fontSize: T.meta, color: C.textMuted }}>
@@ -6047,7 +6054,7 @@ function getCalendarEventColor(event) {
 
 function getCalendarEventTypeLabel(event) {
   if (event.entityType === "check") return "Проверка";
-  if (event.entityType === "case") return "Обращение";
+  if (event.entityType === "case") return "Жалоба";
   if (event.color && CALENDAR_CATEGORIES[event.color]) return CALENDAR_CATEGORIES[event.color].label;
   return event.statusLabel || "Событие";
 }
@@ -6265,7 +6272,7 @@ function ChecksAwareCalendar({ events: propEvents, user, users: allUsers, onRefr
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {(selectedEvent.entityType === "check" || selectedEvent.entityType === "case") && onNavigate && (
               <button className="btn-hover" style={btn("gold")} onClick={() => { setSelectedEvent(null); setSelectedDay(null); onNavigate(selectedEvent.entityType === "check" ? "checks" : "cases"); }}>
-                Перейти к {selectedEvent.entityType === "check" ? "проверке" : "обращению"}
+                Перейти к {selectedEvent.entityType === "check" ? "проверке" : "жалобе"}
               </button>
             )}
             {canManageEvent(selectedEvent) && (
@@ -6715,18 +6722,19 @@ function PagePilotFactionsSummary({ user, sessionUser, users, activityEvents, se
 
   const pageSummary = useMemo(() => {
     const currentEvents = getPilotEventsForPeriod(activityEvents, periodKey, activitySettings, subjectScope);
+    const analyticsEvents = currentEvents.filter(event => !isInternalActivityEvent(event, activitySettings));
     const uniquePersons = new Set();
-    currentEvents
+    analyticsEvents
       .filter(event => isPersonActivityEvent(event, activitySettings))
       .forEach(event => {
         const key = `${event.factionId || "nofaction"}::${event?.personRecord?.targetId || event?.personRecord?.targetFullName || event.id}`;
         if (!key.endsWith("::")) uniquePersons.add(key);
       });
     return {
-      totalEvents: currentEvents.length,
-      closedCases: currentEvents.filter(event => event.type === "decision").length,
+      totalEvents: analyticsEvents.length,
+      closedCases: analyticsEvents.filter(event => event.type === "decision").length,
       uniquePersons: uniquePersons.size,
-      visits: currentEvents.filter(event => isVisitActivityEvent(event, activitySettings)).length,
+      visits: analyticsEvents.filter(event => isVisitActivityEvent(event, activitySettings)).length,
       activeFactions: summaryRows.filter(item => item.totalEvents > 0).length,
     };
   }, [activityEvents, periodKey, activitySettings, subjectScope, summaryRows]);
@@ -7045,7 +7053,7 @@ function PagePilotAnalytics({ user, users, reports, bonuses, activityEvents, set
   const pilotEvents = useMemo(() => getPilotEventsForPeriod(activityEvents, null, activitySettings, subjectScope), [activityEvents, activitySettings, subjectScope]);
   const currentEvents = useMemo(() => getPilotEventsForPeriod(activityEvents, periodKey, activitySettings, subjectScope), [activityEvents, periodKey, activitySettings, subjectScope]);
   const factionStats = useMemo(() => getPilotFactionStats(activityEvents, factions, activitySettings, periodKey, subjectScope), [activityEvents, factions, activitySettings, periodKey, subjectScope]);
-  const byType = useMemo(() => (activitySettings?.eventTypes || DEFAULT_ACTIVITY_EVENT_TYPES).map(typeMeta => ({
+  const byType = useMemo(() => (activitySettings?.eventTypes || DEFAULT_ACTIVITY_EVENT_TYPES).filter(t => !t.internal).map(typeMeta => ({
     ...typeMeta,
     count: currentEvents.filter(event => event.type === typeMeta.id).length,
   })), [activitySettings, currentEvents]);
@@ -7058,11 +7066,12 @@ function PagePilotAnalytics({ user, users, reports, bonuses, activityEvents, set
     date.setMonth(date.getMonth() - index);
     const itemKey = getReportPeriodKey(date);
     const events = getPilotEventsForPeriod(activityEvents, itemKey, activitySettings, subjectScope);
+    const analyticsEvents = events.filter(event => !isInternalActivityEvent(event, activitySettings));
     return {
       periodKey: itemKey,
       label: getPeriodLabelFromKey(itemKey),
-      totalEvents: events.length,
-      closedCases: events.filter(event => event.type === "decision").length,
+      totalEvents: analyticsEvents.length,
+      closedCases: analyticsEvents.filter(event => event.type === "decision").length,
     };
   }).reverse(), [activityEvents, activitySettings, subjectScope]);
   const legacySummary = useMemo(() => getPilotLegacySubjectSummary(users, reports, bonuses, activitySettings?.pilotSubjects || DEFAULT_ACTIVITY_SETTINGS.pilotSubjects), [users, reports, bonuses, activitySettings]);
@@ -7525,7 +7534,7 @@ function PageAnalytics({ user, users, reports, bonuses, activityEvents, setActiv
         <StatBox value={relevantUsers.length} label="Сотрудников" />
         <StatBox value={relevantReports.length} label="Отчётов" color={C.blue} />
         <StatBox value={relevantApprovedBonuses.reduce((s,b)=>s+b.amount,0).toLocaleString()+"₽"} label="Выплачено премий" color={C.success} />
-        {casesAnalytics && <StatBox value={casesAnalytics.total} label="Обращений" color={C.gold} />}
+        {casesAnalytics && <StatBox value={casesAnalytics.total} label="Жалоб" color={C.gold} />}
         {casesAnalytics && <StatBox value={casesAnalytics.overdue} label="Просрочено" color={C.danger} />}
       </div>
 
@@ -7536,7 +7545,7 @@ function PageAnalytics({ user, users, reports, bonuses, activityEvents, setActiv
           <ChartCanvas type="bar" data={reportsBarData} options={{ ...CHART_BASE_OPTIONS, plugins: { ...CHART_BASE_OPTIONS.plugins, legend: { display: false } } }} height={300} />
         </div>
         <div className="resp-card" style={chartCardStyle}>
-          <div style={S.cardTitle}>Обращения по статусам</div>
+          <div style={S.cardTitle}>Жалобы по статусам</div>
           {statusDoughnutData ? <ChartCanvas type="doughnut" data={statusDoughnutData} options={doughnutOpts} height={300} /> : <div style={{ color: C.textMuted, padding: 20 }}>Загрузка данных...</div>}
         </div>
       </div>
@@ -7556,7 +7565,7 @@ function PageAnalytics({ user, users, reports, bonuses, activityEvents, setActiv
       {/* Row 3: Cases by subject + Staff workload */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 18, marginBottom: 18 }}>
         <div className="resp-card" style={chartCardStyle}>
-          <div style={S.cardTitle}>Обращения по субъектам</div>
+          <div style={S.cardTitle}>Жалобы по субъектам</div>
           {casesSubjectData ? <ChartCanvas type="bar" data={casesSubjectData} options={CHART_BASE_OPTIONS} height={300} /> : <div style={{ color: C.textMuted, padding: 20 }}>Загрузка данных...</div>}
         </div>
         <div className="resp-card" style={chartCardStyle}>
@@ -7765,15 +7774,17 @@ function PageUsers({ currentUser, users, registrationRequests, setUsers, positio
     }
   }, [editUser?.id, editUser?.isSystemAdmin, canGrantSystemAdmin]);
 
-  const revealPassword = async () => {
+  const resetPassword = async () => {
     if (!editUser?.id) return;
+    if (!confirm(`Сбросить пароль для ${editUser.surname} ${editUser.name}? Будет сгенерирован новый пароль.`)) return;
     setPasswordBusy(true);
     setPasswordError("");
+    setRevealedPassword("");
     try {
-      const response = await apiRequest("user-password", { userId: editUser.id });
-      setRevealedPassword(response.password || "");
+      const response = await apiRequest("user-reset-password", { userId: editUser.id });
+      setRevealedPassword(response.newPassword || "");
     } catch (e) {
-      setPasswordError(e.message || "Не удалось получить пароль");
+      setPasswordError(e.message || "Не удалось сбросить пароль");
     } finally {
       setPasswordBusy(false);
     }
@@ -7839,16 +7850,20 @@ function PageUsers({ currentUser, users, registrationRequests, setUsers, positio
 
       {editUser&&(<Modal onClose={()=>setEditUser(null)}><div style={S.cardTitle}>Редактирование — {editUser.surname} {editUser.name}</div><div style={{display:"flex",flexDirection:"column",gap:12,marginTop:12}}>
         <div style={S.row}><div style={{flex:1}}><label style={S.label}>Имя</label><input style={S.input} value={editUser.name} onChange={e=>setEditUser(p=>({...p,name:e.target.value}))}/></div><div style={{flex:1}}><label style={S.label}>Фамилия</label><input style={S.input} value={editUser.surname} onChange={e=>setEditUser(p=>({...p,surname:e.target.value}))}/></div></div>
-        <div>
+        {(hasSystemAdminAccess(currentUser) || (currentUser.role === "BOSS" && editUser.subject === currentUser.subject && ["STAFF", "SENIOR_STAFF", "BOSS"].includes(editUser.role))) && <div>
           <label style={S.label}>Пароль</label>
-          <div style={{display:"flex",gap:8,alignItems:"stretch"}}>
-            <input style={{...S.input,flex:1,fontFamily:F.mono,letterSpacing:1}} value={revealedPassword} readOnly placeholder="Нажмите «Показать пароль»" />
-            <button className="btn-hover" style={btn("ghost")} onClick={revealedPassword ? ()=>setRevealedPassword("") : revealPassword} disabled={passwordBusy}>
-              {passwordBusy ? "..." : revealedPassword ? "Скрыть" : "Показать пароль"}
+          {revealedPassword ? <div style={{display:"flex",gap:8,alignItems:"stretch"}}>
+            <input style={{...S.input,flex:1,fontFamily:F.mono,letterSpacing:2,fontSize:"18px",fontWeight:700}} value={revealedPassword} readOnly />
+            <button className="btn-hover" style={btn("ghost")} onClick={()=>{navigator.clipboard?.writeText(revealedPassword);}} title="Копировать">📋</button>
+            <button className="btn-hover" style={btn("ghost")} onClick={()=>setRevealedPassword("")}>Скрыть</button>
+          </div> : <div style={{display:"flex",gap:8,alignItems:"stretch"}}>
+            <div style={{flex:1,fontSize:T.meta,color:C.textMuted,display:"flex",alignItems:"center"}}>Пароли хранятся в зашифрованном виде</div>
+            <button className="btn-hover" style={btn("danger")} onClick={resetPassword} disabled={passwordBusy}>
+              {passwordBusy ? "..." : "Сбросить пароль"}
             </button>
-          </div>
+          </div>}
           {passwordError && <div style={{fontSize:T.meta,color:C.dangerLight,marginTop:6}}>{passwordError}</div>}
-        </div>
+        </div>}
         <div><label style={S.label}>Субъект</label><select style={S.select} value={editUser.subject} onChange={e=>setEditUser(p=>({...p,subject:e.target.value}))} disabled={!canEdit}>{canEdit ? <>{SUBJECTS.map(sub=><option key={sub}>{sub}</option>)}<option value={GENERAL_SUBJECT}>{GENERAL_SUBJECT}</option></> : <option value={editUser.subject}>{editUser.subject}</option>}</select></div>
         <div><label style={S.label}>Роль</label><select style={S.select} value={editUser.role} onChange={e=>setEditUser(p=>({...p,role:e.target.value}))} disabled={!canEdit && currentUser.role !== "BOSS"}>{canEdit ? <><option value="STAFF">STAFF</option><option value="SENIOR_STAFF">SENIOR_STAFF</option><option value="USP">USP</option><option value="BOSS">BOSS</option><option value="FEDERAL">FEDERAL</option>{currentUser.role==="ADMIN"&&<option value="ADMIN">ADMIN</option>}</> : currentUser.role === "BOSS" ? <><option value="STAFF">STAFF</option><option value="SENIOR_STAFF">SENIOR_STAFF</option><option value="BOSS">BOSS</option></> : <option value={editUser.role}>{editUser.role}</option>}</select></div>
         {canGrantSystemAdmin && <label style={{ display:"flex", alignItems:"center", gap:10, fontSize:T.body, color:C.text }}>
