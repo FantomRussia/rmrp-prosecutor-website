@@ -795,7 +795,7 @@ function checks_user_can_edit_check_metadata(array $user, array $check, array $s
 
     return checks_is_subject_prosecutor($user, $settings, $state)
         && ($user['subject'] ?? '') === ($check['subject'] ?? '')
-        && ($check['status'] ?? '') === 'planned';
+        && in_array($check['status'] ?? '', ['planned', 'active'], true);
 }
 
 function checks_user_can_activate_check(array $user, array $check, array $settings, array $state = []): bool
@@ -2800,7 +2800,7 @@ function checks_handle_sync_participants(PDO $pdo, array &$state): void
         respond(404, ['ok' => false, 'error' => 'Проверка не найдена']);
     }
     if (!checks_user_can_edit_check_metadata($user, $check, $settings, $state)) {
-        respond(403, ['ok' => false, 'error' => 'Изменение состава участников доступно только до начала проверки']);
+        respond(403, ['ok' => false, 'error' => 'Недостаточно прав для изменения состава участников']);
     }
 
     $body = read_json_body();
@@ -4678,13 +4678,13 @@ function cases_format_row(array $row, array $state): array
 }
 
 define('CASES_DISCORD_EVENT_CONFIG', [
-    'case.created'              => ['color' => 0x0077b6, 'title' => '📨 Новое обращение'],
+    'case.created'              => ['color' => 0x0077b6, 'title' => '📨 Новая жалоба'],
     'case.assigned'             => ['color' => 0x1d70d1, 'title' => '👤 Назначен исполнитель'],
     'case.supervisor_assigned'  => ['color' => 0x0353a4, 'title' => '👁 Назначен прокурор'],
-    'case.status_changed'       => ['color' => 0xd69a2d, 'title' => '🔄 Статус обращения'],
-    'case.deadline_approaching' => ['color' => 0xd69a2d, 'title' => '⏰ Приближается срок'],
-    'case.overdue'              => ['color' => 0xb34739, 'title' => '🔴 Просрочено'],
-    'case.completed'            => ['color' => 0x2f9e8f, 'title' => '✅ Обращение завершено'],
+    'case.status_changed'       => ['color' => 0xd69a2d, 'title' => '🔄 Изменение статуса'],
+    'case.deadline_approaching' => ['color' => 0xFFA500, 'title' => '⏰ Приближается срок'],
+    'case.overdue'              => ['color' => 0xb34739, 'title' => '🚨 Просрочено!'],
+    'case.completed'            => ['color' => 0x2f9e8f, 'title' => '✅ Жалоба завершена'],
     'case.comment_added'        => ['color' => 0x5865F2, 'title' => '💬 Новый комментарий'],
     'case.link_added'           => ['color' => 0x57F287, 'title' => '📎 Добавлен материал'],
     'case.deadline_extended'    => ['color' => 0xE67E22, 'title' => '📅 Срок продлён'],
@@ -4709,7 +4709,7 @@ define('CASES_DISCORD_SK_ROLE_IDS', [
 define('CASES_DISCORD_PROSECUTOR_ROLE_IDS', [
     'Рублёвка'    => ['1334917739898343464', '1334917743144734843'],
     'Арбат'       => ['1246728779544395867', '1246728780198969465'],
-    'Патрики'     => ['1321237406514544651', '1321237408418893927'],
+    'Патрики'     => ['1407800307601117348', '1321237410386018335'],
     'Тверской'    => ['1367620838760779817', '1367620840866320435'],
     'Кутузовский' => ['1465602272149897248', '1465602274427404371'],
 ]);
@@ -4746,52 +4746,83 @@ function cases_build_discord_embed(string $event, array $data): array
     $config = CASES_DISCORD_EVENT_CONFIG[$event] ?? ['color' => 0x0077b6, 'title' => $event];
 
     $embed = [
+        'author' => [
+            'name' => 'ЕИАС «Фемида»',
+            'icon_url' => 'https://cdn-icons-png.flaticon.com/512/4052/4052984.png',
+        ],
         'title' => $config['title'],
         'color' => $config['color'],
         'timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
         'fields' => [],
     ];
 
+    // Footer with subject
+    $footerParts = [];
+    if (!empty($data['subject'])) $footerParts[] = $data['subject'];
+    $footerParts[] = 'Прокуратура';
+    $embed['footer'] = ['text' => implode(' • ', $footerParts)];
+
+    // ── Description ──
     $descParts = [];
-    if (!empty($data['description']))    $descParts[] = mb_substr($data['description'], 0, 300, 'UTF-8');
-    if (!empty($data['assignedName']))   $descParts[] = '**Исполнитель:** ' . $data['assignedName'];
-    if (!empty($data['supervisorName'])) $descParts[] = '**Прокурор:** ' . $data['supervisorName'];
-    if (!empty($data['skExecutorName'])) $descParts[] = '**Следователь:** ' . $data['skExecutorName'];
-    if (!empty($data['oldStatusLabel']) && !empty($data['statusLabel'])) {
-        $descParts[] = '~~' . $data['oldStatusLabel'] . '~~ → **' . $data['statusLabel'] . '**';
-    } elseif (!empty($data['statusLabel'])) {
-        $descParts[] = '**Статус:** ' . $data['statusLabel'];
+
+    // Comment event: show comment as blockquote
+    if (!empty($data['commentBody'])) {
+        $commentText = mb_substr($data['commentBody'], 0, 1000, 'UTF-8');
+        $descParts[] = '> ' . str_replace("\n", "\n> ", $commentText);
+        if (!empty($data['commentAuthor'])) {
+            $descParts[] = '— *' . $data['commentAuthor'] . '*';
+        }
+    } else {
+        // Regular description
+        if (!empty($data['description'])) {
+            $text = mb_substr($data['description'], 0, 300, 'UTF-8');
+            $descParts[] = '> ' . str_replace("\n", "\n> ", $text);
+        }
+
+        // Status transition
+        if (!empty($data['oldStatusLabel']) && !empty($data['statusLabel'])) {
+            $descParts[] = '';
+            $descParts[] = '~~' . $data['oldStatusLabel'] . '~~  ➜  **' . $data['statusLabel'] . '**';
+        } elseif (!empty($data['statusLabel'])) {
+            $descParts[] = '';
+            $descParts[] = '**Статус:** ' . $data['statusLabel'];
+        }
+
+        // People
+        $people = [];
+        if (!empty($data['assignedName']))   $people[] = '👤 **Исполнитель:** ' . $data['assignedName'];
+        if (!empty($data['supervisorName'])) $people[] = '👁 **Прокурор:** ' . $data['supervisorName'];
+        if (!empty($data['skExecutorName'])) $people[] = '🔍 **Следователь:** ' . $data['skExecutorName'];
+        if (!empty($people)) {
+            $descParts[] = '';
+            $descParts = array_merge($descParts, $people);
+        }
     }
+
     if (count($descParts) > 0) {
         $embed['description'] = implode("\n", $descParts);
     }
 
-    if (!empty($data['regNumber']))     $embed['fields'][] = ['name' => 'Рег. №',     'value' => $data['regNumber'],     'inline' => true];
-    if (!empty($data['applicantName'])) $embed['fields'][] = ['name' => 'Заявитель',   'value' => $data['applicantName'], 'inline' => true];
-    if (!empty($data['caseType']))      $embed['fields'][] = ['name' => 'Тип',         'value' => $data['caseType'],      'inline' => true];
+    // ── Fields row 1: reg number, applicant, type ──
+    if (!empty($data['regNumber']))     $embed['fields'][] = ['name' => '📋 Рег. номер', 'value' => '`' . $data['regNumber'] . '`', 'inline' => true];
+    if (!empty($data['applicantName'])) $embed['fields'][] = ['name' => '👤 Заявитель',  'value' => $data['applicantName'],         'inline' => true];
+    if (!empty($data['caseType']))      $embed['fields'][] = ['name' => '📁 Тип',         'value' => $data['caseType'],              'inline' => true];
+
+    // ── Fields row 2: deadline, links ──
     if (!empty($data['deadline'])) {
         $ts = strtotime($data['deadline']);
-        $embed['fields'][] = ['name' => 'Срок', 'value' => $ts ? '<t:' . $ts . ':D>' : $data['deadline'], 'inline' => true];
+        $deadlineVal = $ts ? '<t:' . $ts . ':D> (<t:' . $ts . ':R>)' : $data['deadline'];
+        $embed['fields'][] = ['name' => '⏰ Крайний срок', 'value' => $deadlineVal, 'inline' => true];
     }
 
-    // Forum link
     if (!empty($data['forumLink'])) {
-        $embed['fields'][] = ['name' => '🔗 Форум', 'value' => '[Ссылка на форум](' . $data['forumLink'] . ')', 'inline' => false];
+        $embed['fields'][] = ['name' => '🔗 Форум', 'value' => '[Открыть тему](' . $data['forumLink'] . ')', 'inline' => true];
     }
-    // Video link
     if (!empty($data['videoLink'])) {
-        $embed['fields'][] = ['name' => '🎥 Видео', 'value' => '[Видео регистрации обращения](' . $data['videoLink'] . ')', 'inline' => false];
+        $embed['fields'][] = ['name' => '🎥 Видео', 'value' => '[Смотреть запись](' . $data['videoLink'] . ')', 'inline' => true];
     }
 
-    // Comment
-    if (!empty($data['commentBody'])) {
-        $embed['description'] = mb_substr($data['commentBody'], 0, 1000, 'UTF-8');
-    }
-    if (!empty($data['commentAuthor'])) {
-        $embed['footer'] = ['text' => $data['commentAuthor']];
-    }
-
-    // Image (comment or link)
+    // ── Image (comment or link) ──
     if (!empty($data['imageUrl'])) {
         $imgUrl = $data['imageUrl'];
         if (!preg_match('#^https?://#i', $imgUrl)) {
@@ -4800,18 +4831,17 @@ function cases_build_discord_embed(string $event, array $data): array
         $embed['image'] = ['url' => $imgUrl];
     }
 
-    // Link added
+    // ── Link added ──
     if (!empty($data['linkUrl'])) {
         $linkUrl = $data['linkUrl'];
-        // Make relative URLs absolute
         if ($linkUrl && !preg_match('#^https?://#i', $linkUrl)) {
             $linkUrl = 'https://prosecutors-office-rmrp.ru/' . ltrim($linkUrl, '/');
         }
-        // If it's an image, show it as embed image
         if (preg_match('/\.(png|jpe?g|gif|webp)$/i', $linkUrl)) {
             $embed['image'] = ['url' => $linkUrl];
         } else {
-            $embed['description'] = ($embed['description'] ?? '') . "\n[" . ($data['linkLabel'] ?: basename($linkUrl)) . "](" . $linkUrl . ")";
+            $label = !empty($data['linkLabel']) ? $data['linkLabel'] : basename($linkUrl);
+            $embed['fields'][] = ['name' => '📎 Материал', 'value' => '[' . $label . '](' . $linkUrl . ')', 'inline' => false];
         }
     }
 
@@ -4876,7 +4906,7 @@ function cases_dispatch_webhook(string $event, array $data): void
     if ($event === 'case.created') {
         // ── Форум-тред: создаём новый пост в форум-канале ──
         $regNumber = $data['regNumber'] ?? 'N/A';
-        $caseType = $data['caseType'] ?? 'Обращение';
+        $caseType = $data['caseType'] ?? 'Жалоба';
         $payload['thread_name'] = $regNumber . ' — ' . $caseType;
 
         $url = $webhookUrl . '?wait=true';
@@ -5821,13 +5851,14 @@ function cases_handle_analytics(PDO $pdo, array &$state): void
 
         $fid = $r['faction_id'] ?? '';
         if ($fid !== '') {
-            if (!isset($byFaction[$fid])) $byFaction[$fid] = ['total' => 0, 'complaints' => 0, 'toInvestigation' => 0, 'toCourt' => 0, 'verdicts' => 0, 'terminated' => 0];
+            if (!isset($byFaction[$fid])) $byFaction[$fid] = ['total' => 0, 'complaints' => 0, 'toInvestigation' => 0, 'toCourt' => 0, 'verdicts' => 0, 'terminated' => 0, 'archived' => 0];
             $byFaction[$fid]['total']++;
             if ($ct === 'complaint') $byFaction[$fid]['complaints']++;
             if (in_array($st, ['transferred_investigation', 'investigation_check', 'criminal_case_opened', 'under_investigation', 'indictment_drafted', 'prosecution_review', 'prosecution_approved', 'sent_to_court', 'verdict_issued'], true)) $byFaction[$fid]['toInvestigation']++;
             if (in_array($st, ['sent_to_court', 'verdict_issued'], true)) $byFaction[$fid]['toCourt']++;
             if ($st === 'verdict_issued') $byFaction[$fid]['verdicts']++;
             if ($st === 'check_terminated') $byFaction[$fid]['terminated']++;
+            if ($st === 'archive') $byFaction[$fid]['archived']++;
         }
 
         $staffUid = $r['assigned_staff_id'] ?? '';

@@ -7660,7 +7660,7 @@ function PageUsers({ currentUser, users, registrationRequests, setUsers, positio
     if (targetUser.id === currentUser.id) return false;
     if (targetUser.isSystemAdmin && !canGrantSystemAdmin) return false;
     if (canEdit) return true;
-    return targetUser.subject === currentUser.subject && ["STAFF", "BOSS"].includes(targetUser.role);
+    return targetUser.subject === currentUser.subject && ["STAFF", "SENIOR_STAFF", "USP", "BOSS"].includes(targetUser.role);
   };
   const canEditUserRecord = (targetUser) => {
     if (!targetUser) return false;

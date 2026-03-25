@@ -240,6 +240,8 @@ function default_activity_settings(): array
             ['id' => 'warning', 'label' => 'Назначение предупреждения госслужащему', 'kind' => 'person'],
             ['id' => 'disciplinary', 'label' => 'Назначение дисциплинарного взыскания', 'kind' => 'person'],
             ['id' => 'official_visit', 'label' => 'Официальный визит / лекция / мероприятие', 'kind' => 'visit'],
+            ['id' => 'news', 'label' => 'Новость (пресс-служба)', 'kind' => 'news', 'internal' => true],
+            ['id' => 'duty', 'label' => 'Дежурство', 'kind' => 'duty'],
         ],
         'requireEvidenceLinks' => true,
     ];
@@ -269,11 +271,21 @@ function normalize_activity_settings($settings, ?array $fallback = null): array
         if ($id === '' || $label === '') {
             continue;
         }
+        $validKinds = ['person', 'visit', 'news', 'duty'];
         $eventTypes[] = [
             'id' => $id,
             'label' => $label,
-            'kind' => $kind === 'visit' ? 'visit' : 'person',
+            'kind' => in_array($kind, $validKinds, true) ? $kind : 'person',
+            'internal' => !empty($item['internal']),
         ];
+    }
+
+    // Merge missing default event types
+    $existingIds = array_column($eventTypes, 'id');
+    foreach ($defaults['eventTypes'] as $defType) {
+        if (!in_array($defType['id'], $existingIds, true)) {
+            $eventTypes[] = $defType;
+        }
     }
 
     return [

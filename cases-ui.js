@@ -1532,6 +1532,7 @@ function CaseAnalyticsDashboard({ user, users, factions, checksMeta, enabledSubj
               React.createElement("th", { style: S.th }, "В суде"),
               React.createElement("th", { style: S.th }, "Приговоры"),
               React.createElement("th", { style: S.th }, "Прекращено"),
+              React.createElement("th", { style: S.th }, "Архив"),
             ),
           ),
           React.createElement("tbody", null,
@@ -1544,6 +1545,7 @@ function CaseAnalyticsDashboard({ user, users, factions, checksMeta, enabledSubj
                 React.createElement("td", { style: S.td, "data-label": "В суде" }, stats.toCourt),
                 React.createElement("td", { style: S.td, "data-label": "Приговоры" }, stats.verdicts),
                 React.createElement("td", { style: S.td, "data-label": "Прекращено" }, stats.terminated),
+                React.createElement("td", { style: S.td, "data-label": "Архив" }, stats.archived || 0),
               );
             }),
           ),
