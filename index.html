@@ -266,15 +266,16 @@ const DEFAULT_FACTIONS = [
   { id: "faction_codd", name: "ГКУ \"ЦОДД\"", active: true },
 ];
 const DEFAULT_ACTIVITY_EVENT_TYPES = [
-  { id: "detention", label: "Задержание госслужащего", kind: "person", icon: "🚔", color: "#5fa8ff" },
-  { id: "decision", label: "Вынесение решения", kind: "person", icon: "⚖", color: "#5bd0a5" },
-  { id: "fine", label: "Назначение штрафа", kind: "person", icon: "🧾", color: "#f3b562" },
-  { id: "warning", label: "Назначение предупреждения", kind: "person", icon: "⚠️", color: "#ffd166" },
-  { id: "disciplinary", label: "Дисциплинарное взыскание", kind: "person", icon: "📛", color: "#ff7b7b" },
-  { id: "official_visit", label: "Официальный визит / лекция", kind: "visit", icon: "🎓", color: "#8fc0ff" },
-  { id: "news", label: "Новость (пресс-служба)", kind: "news", icon: "📰", color: "#4ea8de", internal: true },
-  { id: "duty", label: "Дежурство", kind: "duty", icon: "🛡", color: "#e67e22" },
+  { id: "detention", label: "Задержание госслужащего", shortLabel: "Задержание", kind: "person", icon: "🚔", color: "#5fa8ff" },
+  { id: "decision", label: "Вынесение решения", shortLabel: "Решение", kind: "person", icon: "⚖", color: "#5bd0a5" },
+  { id: "fine", label: "Назначение штрафа", shortLabel: "Штраф", kind: "person", icon: "🧾", color: "#f3b562" },
+  { id: "warning", label: "Назначение предупреждения", shortLabel: "Предупрежд.", kind: "person", icon: "⚠️", color: "#ffd166" },
+  { id: "disciplinary", label: "Дисциплинарное взыскание", shortLabel: "Дисциплин.", kind: "person", icon: "📛", color: "#ff7b7b" },
+  { id: "official_visit", label: "Официальный визит / лекция", shortLabel: "Визит", kind: "visit", icon: "🎓", color: "#8fc0ff" },
+  { id: "news", label: "Новость (пресс-служба)", shortLabel: "Новость", kind: "news", icon: "📰", color: "#4ea8de", internal: true },
+  { id: "duty", label: "Дежурство", shortLabel: "Дежурство", kind: "duty", icon: "🛡", color: "#e67e22" },
 ];
+const EVENT_TYPE_SHORT_LABELS = { detention: "Задержание", decision: "Решение", fine: "Штраф", warning: "Предупрежд.", disciplinary: "Дисциплин.", official_visit: "Визит", news: "Новость", duty: "Дежурство" };
 const DEFAULT_ACTIVITY_SETTINGS = {
   pilotSubjects: PILOT_SUBJECTS,
   eventTypes: DEFAULT_ACTIVITY_EVENT_TYPES,
@@ -326,6 +327,7 @@ const NAV_ITEMS = {
     { id: "my-report", label: "Мой отчёт", icon: "📋" },
     { id: "subject-control", label: "Контроль субъекта", icon: "🔍" },
     { id: "analytics", label: "Аналитика", icon: "📊" },
+    { id: "personnel-summary", label: "Пофамильная сводка", icon: "📑" },
     { id: "registration-requests", label: "Заявки на регистрацию", icon: "📝" },
     { id: "users", label: "Пользователи", icon: "👥" },
   ],
@@ -1412,7 +1414,8 @@ function getPilotLegacySubjectSummary(users, reports, bonuses, excludedSubjects 
       const reportUser = subjectUsers.find(item => item.id === report.userId);
       return Boolean(reportUser);
     });
-    const approvedBonuses = (bonuses || []).filter(item => item.subject === subject && item.status === "approved");
+    const activeIds = getActiveUserIds(users);
+    const approvedBonuses = (bonuses || []).filter(item => item.subject === subject && item.status === "approved" && activeIds.has(item.userId));
     return {
       subject,
       users: subjectUsers.length,
@@ -2531,6 +2534,15 @@ function upsertItemById(items, nextItem) {
 function getUserFullName(user) {
   return user ? `${user.surname} ${user.name}` : "—";
 }
+function getActiveUserIds(users) {
+  const set = new Set();
+  (users || []).forEach(u => { if (u && !u.blocked) set.add(u.id); });
+  return set;
+}
+function filterBonusesActiveUsers(bonuses, users) {
+  const active = getActiveUserIds(users);
+  return (bonuses || []).filter(b => active.has(b.userId));
+}
 
 function ReportEntryView({ entry, reportId }) {
   const links = Array.isArray(entry?.links) ? entry.links.filter(Boolean) : [];
@@ -2570,7 +2582,7 @@ function canBossReviewReport(report, currentUser) {
   return currentUser?.role === "BOSS"
     && ["pending_boss", "returned_boss"].includes(getReportStatusValue(report))
     && report?.subject === currentUser.subject
-    && (report?.authorRole || "STAFF") === "STAFF";
+    && ["STAFF", "SENIOR_STAFF", "USP"].includes(report?.authorRole || "STAFF");
 }
 
 function canFederalReviewReport(report, currentUser) {
@@ -5181,8 +5193,8 @@ function PagePilotActivityJournal({ user, users, activityEvents, setActivityEven
 
       <div className="stat-row" style={{ ...S.row, marginBottom: 16 }}>
         <StatBox value={metrics.totalEvents} label="Записей за месяц" color={C.blue} />
-        <StatBox value={metrics.closedCases} label="Закрытых дел" color={C.success} />
-        <StatBox value={metrics.uniquePersons} label="Уникальных лиц" color={C.gold} />
+        <StatBox value={metrics.closedCases} label="Вынесено решений" color={C.success} />
+        <StatBox value={metrics.uniquePersons} label="Лиц в производстве" color={C.gold} />
         <StatBox value={metrics.eventsWithoutLinks} label="Без доказательств" color={metrics.eventsWithoutLinks > 0 ? C.warning : C.textMuted} />
       </div>
 
@@ -6503,7 +6515,7 @@ function PagePilotSubjectControl({ user, users, activityEvents, performanceRevie
         </div>
         <div className="responsive-table-wrap">
         <table style={S.table}>
-          <thead><tr><th style={S.th}>Сотрудник</th><th style={S.th}>Роль</th><th style={S.th}>Закрытых дел</th><th style={S.th}>Событий</th><th style={S.th}>Фракций</th><th style={S.th}>Статус</th><th style={S.th}>Действие</th></tr></thead>
+          <thead><tr><th style={S.th}>Сотрудник</th><th style={S.th}>Роль</th><th style={S.th}>Вынесено решений</th><th style={S.th}>Событий</th><th style={S.th}>Фракций</th><th style={S.th}>Статус</th><th style={S.th}>Действие</th></tr></thead>
           <tbody>
             {rows.map(row => {
               const reviewMeta = row.review ? getPerformanceReviewStatusMeta(row.review) : null;
@@ -6512,7 +6524,7 @@ function PagePilotSubjectControl({ user, users, activityEvents, performanceRevie
                 <tr key={`${row.user.id}-${periodKey}`} className="row-hover">
                   <td data-label="Сотрудник" style={{ ...S.td, color: C.text }}>{getUserFullName(row.user)}</td>
                   <td data-label="Роль" style={S.td}><RoleBadge role={row.user.role} /></td>
-                  <td data-label="Закрытых дел" style={{ ...S.td, color: C.success, fontWeight: 700 }}>{row.metrics.closedCases}</td>
+                  <td data-label="Вынесено решений" style={{ ...S.td, color: C.success, fontWeight: 700 }}>{row.metrics.closedCases}</td>
                   <td data-label="Событий" style={S.td}>{row.metrics.totalEvents}</td>
                   <td data-label="Фракций" style={S.td}>{row.metrics.uniqueFactions}</td>
                   <td data-label="Статус" style={S.td}>{reviewMeta ? <span style={badge(reviewMeta.color)}>{reviewMeta.label}</span> : <span style={badge(C.textMuted)}>Не назначен</span>}</td>
@@ -6535,7 +6547,7 @@ function PagePilotSubjectControl({ user, users, activityEvents, performanceRevie
           <div style={{ padding: "14px 16px", background: C.bgInput, borderRadius: 10, border: `1px solid ${C.border}` }}>
             <div style={{ color: C.text, fontSize: T.bodyStrong, fontWeight: 700 }}>{getUserFullName(selectedRow.user)}</div>
             <div style={{ color: C.textMuted, fontSize: T.meta, marginTop: 6 }}>Базовая ставка: {formatCurrency(getReportBaseAmount(selectedRow.user.role))}</div>
-            <div style={{ color: C.textMuted, fontSize: T.meta, marginTop: 4 }}>Событий: {selectedRow.metrics.totalEvents} • Закрытых дел: {selectedRow.metrics.closedCases} • Уникальных лиц: {selectedRow.metrics.uniquePersons}</div>
+            <div style={{ color: C.textMuted, fontSize: T.meta, marginTop: 4 }}>Событий: {selectedRow.metrics.totalEvents} • Вынесено решений: {selectedRow.metrics.closedCases} • Лиц в производстве: {selectedRow.metrics.uniquePersons}</div>
           </div>
           <div className="resp-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginTop: 16 }}>
             <div><label style={S.label}>Коэффициент</label><select style={S.select} value={reviewForm.coefficient} onChange={e => setReviewForm(prev => ({ ...prev, coefficient: e.target.value }))}>{REPORT_COEFFICIENT_OPTIONS.map(value => <option key={value} value={value}>{formatCoefficient(value)}</option>)}</select></div>
@@ -6564,7 +6576,7 @@ function PageSubjectControl({ user, users, reports, setReports, addAudit, activi
   }
   const subjectUsers = users.filter(item => item.subject === user.subject && !item.blocked);
   const queue = reports.filter(report => canBossReviewReport(report, user)).sort((a, b) => new Date(a.date) - new Date(b.date));
-  const forwarded = reports.filter(report => report.subject === user.subject && report.authorRole === "STAFF" && ["pending_federal", "approved"].includes(getReportStatusValue(report))).length;
+  const forwarded = reports.filter(report => report.subject === user.subject && ["STAFF", "SENIOR_STAFF", "USP"].includes(report.authorRole || "STAFF") && ["pending_federal", "approved"].includes(getReportStatusValue(report))).length;
   const [selectedReport, setSelectedReport] = useState(null);
   const [reviewForm, setReviewForm] = useState({ coefficient: "0", extraAmount: "0", comment: "" });
 
@@ -6656,6 +6668,70 @@ function PageSubjectControl({ user, users, reports, setReports, addAudit, activi
                 {getReportEntries(selectedReport).map(entry => <ReportEntryView key={`${selectedReport.id}-${entry.criteriaId}`} entry={entry} reportId={selectedReport.id} />)}
               </div>
             </div>
+
+            {(() => {
+              const bossReviewUser = users.find(item => item.id === selectedReport.userId);
+              const bossReviewPeriodKey = selectedReport.periodKey || getReportPeriodKey(selectedReport.date);
+              const bossReviewMetrics = buildPilotMetricsSnapshot(bossReviewUser, activityEvents, factions, bossReviewPeriodKey, activitySettings);
+              const bossEventTypes = activitySettings?.eventTypes || DEFAULT_ACTIVITY_EVENT_TYPES;
+              if (bossReviewMetrics.totalEvents === 0) return null;
+              return (
+                <div style={{ padding: "14px 16px", background: C.bgInput, borderRadius: 8 }}>
+                  <div style={{ fontSize: T.bodyStrong, color: C.gold, marginBottom: 12 }}>Активность сотрудника за период</div>
+                  <div className="stat-row" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
+                    <div style={{ padding: "8px 14px", background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, minWidth: 100, textAlign: "center" }}>
+                      <div style={{ fontSize: T.title, fontWeight: 700, color: C.blue }}>{bossReviewMetrics.totalEvents}</div>
+                      <div style={{ fontSize: T.meta, color: C.textMuted }}>Событий</div>
+                    </div>
+                    <div style={{ padding: "8px 14px", background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, minWidth: 100, textAlign: "center" }}>
+                      <div style={{ fontSize: T.title, fontWeight: 700, color: C.success }}>{bossReviewMetrics.closedCases}</div>
+                      <div style={{ fontSize: T.meta, color: C.textMuted }}>Вынесено решений</div>
+                    </div>
+                    <div style={{ padding: "8px 14px", background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, minWidth: 100, textAlign: "center" }}>
+                      <div style={{ fontSize: T.title, fontWeight: 700, color: C.gold }}>{bossReviewMetrics.uniquePersons}</div>
+                      <div style={{ fontSize: T.meta, color: C.textMuted }}>Лиц в производстве</div>
+                    </div>
+                    {bossReviewMetrics.visitsCount > 0 && (
+                      <div style={{ padding: "8px 14px", background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, minWidth: 100, textAlign: "center" }}>
+                        <div style={{ fontSize: T.title, fontWeight: 700, color: C.blueLight || C.blue }}>{bossReviewMetrics.visitsCount}</div>
+                        <div style={{ fontSize: T.meta, color: C.textMuted }}>Визитов</div>
+                      </div>
+                    )}
+                  </div>
+                  {Object.keys(bossReviewMetrics.typeCounts || {}).length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: T.meta, color: C.textMuted, marginBottom: 8 }}>Детализация по типам</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        {Object.entries(bossReviewMetrics.typeCounts).sort((a, b) => b[1] - a[1]).map(([typeId, count]) => {
+                          const typeMeta = bossEventTypes.find(item => item.id === typeId) || { label: typeId, icon: "📌" };
+                          return <div key={typeId} style={{ fontSize: T.body, color: C.text }}>{typeMeta.icon} {typeMeta.label} — <span style={{ fontWeight: 700 }}>{count}</span></div>;
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {(bossReviewMetrics.recentEvents || []).length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: T.meta, color: C.textMuted, marginBottom: 8 }}>Последние события</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        {bossReviewMetrics.recentEvents.map(event => (
+                          <div key={event.id} style={{ fontSize: T.body, color: C.text }}>{formatDate(event.date)} — {event.title}{event.factionName ? ` (${event.factionName})` : ""}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(bossReviewMetrics.topReasons || []).length > 0 && (
+                    <div>
+                      <div style={{ fontSize: T.meta, color: C.textMuted, marginBottom: 8 }}>Топ оснований</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        {bossReviewMetrics.topReasons.map((item, index) => (
+                          <div key={item.reason} style={{ fontSize: T.body, color: C.text }}>{index + 1}. {item.reason} — <span style={{ fontWeight: 700 }}>{item.count}</span></div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <div className="resp-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
               <div>
@@ -6796,8 +6872,8 @@ function PagePilotFactionsSummary({ user, sessionUser, users, activityEvents, se
 
       <div className="stat-row" style={{ ...S.row, marginBottom: 18 }}>
         <StatBox value={pageSummary.totalEvents} label="Всего записей" color={C.blue} />
-        <StatBox value={pageSummary.closedCases} label="Закрытых дел" color={C.success} />
-        <StatBox value={pageSummary.uniquePersons} label="Уникальных лиц" color={C.gold} />
+        <StatBox value={pageSummary.closedCases} label="Вынесено решений" color={C.success} />
+        <StatBox value={pageSummary.uniquePersons} label="Лиц в производстве" color={C.gold} />
         <StatBox value={pageSummary.visits} label="Официальных визитов" color={C.warning} />
         <StatBox value={pageSummary.activeFactions} label="Активных фракций" color={C.blueLight || C.blue} />
       </div>
@@ -6838,7 +6914,7 @@ function PagePilotFactionsSummary({ user, sessionUser, users, activityEvents, se
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, marginTop: 12, fontSize: T.meta, color: C.textMuted }}>
-                <div>Закрытых дел: <span style={{ color: C.success }}>{row.closedCases}</span></div>
+                <div>Вынесено решений: <span style={{ color: C.success }}>{row.closedCases}</span></div>
                 <div>Визитов: <span style={{ color: C.warning }}>{row.visits}</span></div>
                 <div>Задержаний: <span style={{ color: C.text }}>{row.typeCounts.detention || 0}</span></div>
                 <div>Штрафов: <span style={{ color: C.text }}>{row.typeCounts.fine || 0}</span></div>
@@ -6868,7 +6944,7 @@ function PagePilotFactionsSummary({ user, sessionUser, users, activityEvents, se
             <div className="stat-row" style={{ ...S.row, marginBottom: 0 }}>
               <StatBox value={selectedDetail.events.length} label="Записей" color={C.blue} />
               <StatBox value={selectedDetail.people.length} label="Лиц в досье" color={C.gold} />
-              <StatBox value={selectedDetail.events.filter(event => event.type === "decision").length} label="Закрытых дел" color={C.success} />
+              <StatBox value={selectedDetail.events.filter(event => event.type === "decision").length} label="Вынесено решений" color={C.success} />
               <StatBox value={selectedDetail.events.filter(event => isVisitActivityEvent(event, activitySettings)).length} label="Визитов" color={C.warning} />
             </div>
 
@@ -7109,11 +7185,13 @@ function PagePilotAnalytics({ user, users, reports, bonuses, activityEvents, set
             lastReason: "",
             typeCounts: {},
             mainType: "",
+            lastAuthorUserId: "",
           };
         }
         records[key].count += 1;
         records[key].typeCounts[event.type] = (records[key].typeCounts[event.type] || 0) + 1;
         records[key].lastReason = event?.personRecord?.reason || records[key].lastReason;
+        records[key].lastAuthorUserId = event.authorUserId || records[key].lastAuthorUserId;
       });
     const result = Object.values(records);
     result.forEach(person => {
@@ -7121,7 +7199,10 @@ function PagePilotAnalytics({ user, users, reports, bonuses, activityEvents, set
       person.mainType = top ? top[0] : "";
       const meta = eventTypes.find(t => t.id === person.mainType);
       person.mainTypeLabel = meta ? meta.label : "—";
+      person.mainTypeShortLabel = EVENT_TYPE_SHORT_LABELS[person.mainType] || (meta ? meta.label : "—");
       person.mainTypeIcon = meta ? meta.icon : "";
+      const authorUser = users.find(u => u.id === person.lastAuthorUserId);
+      person.authorName = authorUser ? getUserFullName(authorUser) : "—";
     });
     const { key, dir } = dossierSort;
     result.sort((a, b) => {
@@ -7130,10 +7211,11 @@ function PagePilotAnalytics({ user, users, reports, bonuses, activityEvents, set
       else if (key === "type") cmp = (a.mainTypeLabel || "").localeCompare(b.mainTypeLabel || "", "ru");
       else if (key === "fullName") cmp = (a.fullName || "").localeCompare(b.fullName || "", "ru");
       else if (key === "position") cmp = (a.position || "").localeCompare(b.position || "", "ru");
+      else if (key === "authorName") cmp = (a.authorName || "").localeCompare(b.authorName || "", "ru");
       return dir === "desc" ? -cmp : cmp;
     });
     return result;
-  }, [selectedFactionId, factionDossierAllEvents, activitySettings, dossierSort]);
+  }, [selectedFactionId, factionDossierAllEvents, activitySettings, dossierSort, users]);
 
   const factionDossierVisits = useMemo(() => {
     return factionDossierAllEvents.filter(event => isVisitActivityEvent(event, activitySettings));
@@ -7175,8 +7257,8 @@ function PagePilotAnalytics({ user, users, reports, bonuses, activityEvents, set
             <button key={item.faction.id} className="btn-hover" style={{ ...S.card, marginBottom: 0, textAlign: "left", cursor: "pointer", display: "flex", flexDirection: "column", minHeight: 236 }} onClick={() => { setSelectedFactionId(item.faction.id); setSelectedPerson(null); setPersonFilters({ periodKey: "", type: "", authorUserId: "" }); setDossierTypeFilter(""); setDossierSort({ key: "count", dir: "desc" }); }}>
               <div style={{ fontSize: T.bodyStrong, color: C.text, fontWeight: 700, lineHeight: 1.35, minHeight: "2.7em", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.faction.name}</div>
               <div style={{ fontSize: T.title, color: C.gold, fontWeight: 700, marginTop: 8 }}>{item.totalEvents}</div>
-              <div style={{ fontSize: T.meta, color: C.textMuted, marginTop: 6 }}>Уникальных лиц: {item.uniquePersons}</div>
-              <div style={{ fontSize: T.meta, color: C.textMuted, marginTop: 4 }}>Закрытых дел: {item.closedCases} • Визитов: {item.visits}</div>
+              <div style={{ fontSize: T.meta, color: C.textMuted, marginTop: 6 }}>Лиц в производстве: {item.uniquePersons}</div>
+              <div style={{ fontSize: T.meta, color: C.textMuted, marginTop: 4 }}>Вынесено решений: {item.closedCases} • Визитов: {item.visits}</div>
               <div style={{ fontSize: T.meta, color: C.textDim, marginTop: 6, lineHeight: 1.45, minHeight: "2.9em", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.topReason ? `Топ-причина: ${item.topReason.reason}` : "Причины пока не накоплены"}</div>
             </button>
           ))}
@@ -7199,7 +7281,7 @@ function PagePilotAnalytics({ user, users, reports, bonuses, activityEvents, set
           labels: dynamics.map(d => d.label),
           datasets: [
             { label: "Событий", data: dynamics.map(d => d.totalEvents), borderColor: "#5bc0eb", backgroundColor: "#5bc0eb33", tension: 0.3, fill: true, pointRadius: 4 },
-            { label: "Закрытых дел", data: dynamics.map(d => d.closedCases), borderColor: "#2f9e8f", backgroundColor: "#2f9e8f33", tension: 0.3, fill: true, pointRadius: 4 },
+            { label: "Вынесено решений", data: dynamics.map(d => d.closedCases), borderColor: "#2f9e8f", backgroundColor: "#2f9e8f33", tension: 0.3, fill: true, pointRadius: 4 },
           ],
         };
         // By type doughnut data
@@ -7223,7 +7305,7 @@ function PagePilotAnalytics({ user, users, reports, bonuses, activityEvents, set
         const employeeBarData = topEmployees.length > 0 ? {
           labels: topEmployees.map(e => getUserFullName(e.user)),
           datasets: [
-            { label: "Закрытых дел", data: topEmployees.map(e => e.metrics.closedCases), backgroundColor: "#2f9e8f", borderRadius: 4 },
+            { label: "Вынесено решений", data: topEmployees.map(e => e.metrics.closedCases), backgroundColor: "#2f9e8f", borderRadius: 4 },
             { label: "Событий", data: topEmployees.map(e => e.metrics.events), backgroundColor: "#63a4ff", borderRadius: 4 },
           ],
         } : null;
@@ -7283,8 +7365,9 @@ function PagePilotAnalytics({ user, users, reports, bonuses, activityEvents, set
                           <th style={thSortable} onClick={() => toggleSort("type")}>Тип{sortIcon("type")}</th>
                           <th style={thSortable} onClick={() => toggleSort("count")}>#️{sortIcon("count")}</th>
                           <th style={{ ...S.th, fontSize: T.meta }}>Причина</th>
+                          <th style={thSortable} onClick={() => toggleSort("authorName")}>Автор{sortIcon("authorName")}</th>
                         </tr></thead>
-                        <tbody>{factionDossierPeople.map(person => <tr key={`${person.targetId}-${person.fullName}`} className="row-hover" onClick={() => setSelectedPerson(person)} style={{ cursor: "pointer" }}><td data-label="ФИО" style={{ ...noWrap, color: C.text }}>{person.fullName}</td><td data-label="ID" style={noWrap}>{person.targetId || "—"}</td><td data-label="Зв./Долж." style={truncCell} title={person.position}>{person.position}</td><td data-label="Тип" style={truncCell} title={person.mainTypeLabel}>{person.mainTypeIcon} {person.mainTypeLabel}</td><td data-label="Кол-во" style={noWrap}>{person.count}</td><td data-label="Причина" style={truncCell} title={person.lastReason}>{person.lastReason || "—"}</td></tr>)}</tbody>
+                        <tbody>{factionDossierPeople.map(person => <tr key={`${person.targetId}-${person.fullName}`} className="row-hover" onClick={() => setSelectedPerson(person)} style={{ cursor: "pointer" }}><td data-label="ФИО" style={{ ...noWrap, color: C.text }}>{person.fullName}</td><td data-label="ID" style={noWrap}>{person.targetId || "—"}</td><td data-label="Зв./Долж." style={truncCell} title={person.position}>{person.position}</td><td data-label="Тип" style={truncCell} title={person.mainTypeLabel}>{person.mainTypeIcon} {person.mainTypeShortLabel}</td><td data-label="Кол-во" style={noWrap}>{person.count}</td><td data-label="Причина" style={truncCell} title={person.lastReason}>{person.lastReason || "—"}</td><td data-label="Автор" style={truncCell} title={person.authorName}>{person.authorName}</td></tr>)}</tbody>
                       </table>
                       </div>
                     );
@@ -7402,12 +7485,12 @@ function PageAnalytics({ user, users, reports, bonuses, activityEvents, setActiv
   const isFederalView = getUserPermissionLevel(user) >= 2;
   const relevantUsers = isFederalView ? users.filter(u => !u.blocked) : users.filter(u => u.subject === user.subject && !u.blocked);
   const relevantReports = reports.filter(r => isOperationalReport(r) && relevantUsers.find(u => u.id === r.userId));
-  const relevantApprovedBonuses = bonuses.filter(b => b.status === "approved" && (isFederalView ? true : b.subject === user.subject));
+  const relevantApprovedBonuses = filterBonusesActiveUsers(bonuses, users).filter(b => b.status === "approved" && (isFederalView ? true : b.subject === user.subject));
   const subjectScope = isFederalView ? SUBJECTS : [user.subject];
   const bySubject = subjectScope.map(sub => {
     const su = relevantUsers.filter(u => u.subject === sub);
     const sr = relevantReports.filter(r => su.find(u => u.id === r.userId));
-    const totalBonus = bonuses.filter(b => b.subject === sub && b.status === "approved").reduce((s, b) => s + b.amount, 0);
+    const totalBonus = relevantApprovedBonuses.filter(b => b.subject === sub).reduce((s, b) => s + b.amount, 0);
     const reportsPerUser = su.length > 0 ? (sr.length / su.length).toFixed(1) : "0.0";
     return { name: sub, users: su.length, reports: sr.length, reportsPerUser, totalBonus };
   });
@@ -7667,7 +7750,7 @@ function PageUsers({ currentUser, users, registrationRequests, setUsers, positio
     if (targetUser.isSystemAdmin && !canGrantSystemAdmin) return false;
     if (canEdit) return true;
     // BOSS может редактировать STAFF и BOSS своего субъекта (включая себя)
-    if (currentUser.role === "BOSS" && targetUser.subject === currentUser.subject && ["STAFF", "SENIOR_STAFF", "BOSS"].includes(targetUser.role)) return true;
+    if (currentUser.role === "BOSS" && targetUser.subject === currentUser.subject && ["STAFF", "SENIOR_STAFF", "USP", "BOSS"].includes(targetUser.role)) return true;
     return false;
   };
 
@@ -7732,9 +7815,13 @@ function PageUsers({ currentUser, users, registrationRequests, setUsers, positio
   };
 
   const [deleteConfirmUser, setDeleteConfirmUser] = useState(null);
-  const canDeleteUser = hasSystemAdminAccess(currentUser);
+  const canDeleteUser = (targetUser) => {
+    if (hasSystemAdminAccess(currentUser)) return true;
+    if (currentUser?.role === "BOSS" && targetUser && targetUser.subject === currentUser.subject && targetUser.role !== "FEDERAL" && targetUser.id !== currentUser.id && !targetUser.isSystemAdmin) return true;
+    return false;
+  };
   const deleteUser = () => {
-    if (!deleteConfirmUser || !canDeleteUser) return;
+    if (!deleteConfirmUser || !canDeleteUser(deleteConfirmUser)) return;
     const targetId = deleteConfirmUser.id;
     const fullName = getUserFullName(deleteConfirmUser);
     const removedReports = (reports || []).filter(r => r.userId === targetId).length;
@@ -7816,7 +7903,7 @@ function PageUsers({ currentUser, users, registrationRequests, setUsers, positio
         <thead><tr><th style={S.th}>ФИО</th><th style={S.th}>Должность</th><th style={S.th}>Роль</th><th style={S.th}>Субъект</th><th style={S.th}>Статус</th>{canManageBlocks&&<th style={S.th}>Действия</th>}</tr></thead>
         <tbody>{usersPg.paged.map(u=>(
           <tr key={u.id} className="row-hover"><td data-label="ФИО" style={{...S.td,color:C.text}}>{u.surname} {u.name}</td><td data-label="Должность" style={S.td}>{getPosition(u)}</td><td data-label="Роль" style={S.td}><div style={{display:"flex",gap:6,flexWrap:"wrap"}}><RoleBadge role={u.role}/>{u.isSystemAdmin&&<span style={S.tag}>Системный администратор</span>}{u.isTester&&<span style={S.tag}>Тестер</span>}</div></td><td data-label="Субъект" style={S.td}>{u.subject}</td><td data-label="Статус" style={S.td}><span style={badge(u.blocked?C.danger:C.success)}>{u.blocked?"Заблокирован":"Активен"}</span></td>
-          {canManageBlocks&&(<td data-label="Действия" style={S.td}><div style={{display:"flex",gap:6}}>{canEditUserRecord(u)&&<button className="btn-hover" style={btn("ghost")} onClick={()=>setEditUser(normalizeUserRecord(u))}>✏️</button>}{canToggleUserBlock(u)&&<button className="btn-hover" style={btn(u.blocked?"success":"danger")} onClick={()=>toggleBlock(u.id)}>{u.blocked?"🔓":"🔒"}</button>}{canDeleteUser&&u.id!==currentUser.id&&<button className="btn-hover" style={btn("danger")} onClick={()=>setDeleteConfirmUser(u)} title="Удалить аккаунт">🗑️</button>}</div></td>)}</tr>
+          {canManageBlocks&&(<td data-label="Действия" style={S.td}><div style={{display:"flex",gap:6}}>{canEditUserRecord(u)&&<button className="btn-hover" style={btn("ghost")} onClick={()=>setEditUser(normalizeUserRecord(u))}>✏️</button>}{canToggleUserBlock(u)&&<button className="btn-hover" style={btn(u.blocked?"success":"danger")} onClick={()=>toggleBlock(u.id)}>{u.blocked?"🔓":"🔒"}</button>}{canDeleteUser(u)&&<button className="btn-hover" style={btn("danger")} onClick={()=>setDeleteConfirmUser(u)} title="Удалить аккаунт">🗑️</button>}</div></td>)}</tr>
         ))}</tbody></table>
         <Pagination page={usersPg.page} totalPages={usersPg.totalPages} onChange={usersPg.setPage} total={usersPg.total} />
       </div>
@@ -8272,13 +8359,13 @@ function PagePilotBonusApprovalSection({ user, users, bonuses, setBonuses, activ
       ) : (
         <div className="responsive-table-wrap">
         <table style={S.table}>
-          <thead><tr><th style={S.th}>Сотрудник</th><th style={S.th}>Роль</th><th style={S.th}>Закрытых дел</th><th style={S.th}>Событий</th><th style={S.th}>Черновой коэффициент</th><th style={S.th}>Решение</th></tr></thead>
+          <thead><tr><th style={S.th}>Сотрудник</th><th style={S.th}>Роль</th><th style={S.th}>Вынесено решений</th><th style={S.th}>Событий</th><th style={S.th}>Черновой коэффициент</th><th style={S.th}>Решение</th></tr></thead>
           <tbody>
             {queue.map(item => (
               <tr key={item.id} className="row-hover">
                 <td data-label="Сотрудник" style={{ ...S.td, color: C.text }}>{getUserFullName(item.user)}</td>
                 <td data-label="Роль" style={S.td}><RoleBadge role={item.user.role} /></td>
-                <td data-label="Закрытых дел" style={{ ...S.td, color: C.success, fontWeight: 700 }}>{item.metricsSnapshot.closedCases || 0}</td>
+                <td data-label="Вынесено решений" style={{ ...S.td, color: C.success, fontWeight: 700 }}>{item.metricsSnapshot.closedCases || 0}</td>
                 <td data-label="Событий" style={S.td}>{item.metricsSnapshot.totalEvents || 0}</td>
                 <td data-label="Черновой коэффициент" style={S.td}>{item.review?.bossReview ? formatCoefficient(item.review.bossReview.coefficient) : "Прямое решение ГП"}</td>
                 <td data-label="Решение" style={S.td}><button className="btn-hover" style={btn("ghost")} onClick={() => openReview(item)}>Рассмотреть</button></td>
@@ -8296,9 +8383,70 @@ function PagePilotBonusApprovalSection({ user, users, bonuses, setBonuses, activ
           <div style={{ padding: "14px 16px", background: C.bgInput, borderRadius: 10, border: `1px solid ${C.border}` }}>
             <div style={{ color: C.text, fontSize: T.bodyStrong, fontWeight: 700 }}>{getUserFullName(selectedItem.user)}</div>
             <div style={{ color: C.textMuted, fontSize: T.meta, marginTop: 6 }}>Базовая ставка: {formatCurrency(getReportBaseAmount(selectedItem.user.role))}</div>
-            <div style={{ color: C.textMuted, fontSize: T.meta, marginTop: 4 }}>Событий: {selectedItem.metricsSnapshot.totalEvents || 0} • Закрытых дел: {selectedItem.metricsSnapshot.closedCases || 0} • Уникальных лиц: {selectedItem.metricsSnapshot.uniquePersons || 0}</div>
+            <div style={{ color: C.textMuted, fontSize: T.meta, marginTop: 4 }}>Событий: {selectedItem.metricsSnapshot.totalEvents || 0} • Вынесено решений: {selectedItem.metricsSnapshot.closedCases || 0} • Лиц в производстве: {selectedItem.metricsSnapshot.uniquePersons || 0}</div>
             {selectedItem.review?.bossReview && <div style={{ color: C.textMuted, fontSize: T.meta, marginTop: 4 }}>Предложение BOSS: {formatCoefficient(selectedItem.review.bossReview.coefficient)} • {formatCurrency(calculateReportBonusAmount(getReportBaseAmount(selectedItem.user.role), selectedItem.review.bossReview.coefficient, selectedItem.review.bossReview.extraAmount))}</div>}
           </div>
+          {(() => {
+            const pilotMetrics = selectedItem.metricsSnapshot || {};
+            const pilotEventTypes = activitySettings?.eventTypes || DEFAULT_ACTIVITY_EVENT_TYPES;
+            if (!pilotMetrics.totalEvents) return null;
+            return (
+              <div style={{ padding: "14px 16px", background: C.bgInput, borderRadius: 10, border: `1px solid ${C.border}`, marginTop: 16 }}>
+                <div style={{ fontSize: T.bodyStrong, color: C.gold, marginBottom: 12 }}>Активность сотрудника за период</div>
+                <div className="stat-row" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
+                  <div style={{ padding: "8px 14px", background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, minWidth: 100, textAlign: "center" }}>
+                    <div style={{ fontSize: T.title, fontWeight: 700, color: C.blue }}>{pilotMetrics.totalEvents}</div>
+                    <div style={{ fontSize: T.meta, color: C.textMuted }}>Событий</div>
+                  </div>
+                  <div style={{ padding: "8px 14px", background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, minWidth: 100, textAlign: "center" }}>
+                    <div style={{ fontSize: T.title, fontWeight: 700, color: C.success }}>{pilotMetrics.closedCases || 0}</div>
+                    <div style={{ fontSize: T.meta, color: C.textMuted }}>Вынесено решений</div>
+                  </div>
+                  <div style={{ padding: "8px 14px", background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, minWidth: 100, textAlign: "center" }}>
+                    <div style={{ fontSize: T.title, fontWeight: 700, color: C.gold }}>{pilotMetrics.uniquePersons || 0}</div>
+                    <div style={{ fontSize: T.meta, color: C.textMuted }}>Лиц в производстве</div>
+                  </div>
+                  {(pilotMetrics.visitsCount || 0) > 0 && (
+                    <div style={{ padding: "8px 14px", background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, minWidth: 100, textAlign: "center" }}>
+                      <div style={{ fontSize: T.title, fontWeight: 700, color: C.blueLight || C.blue }}>{pilotMetrics.visitsCount}</div>
+                      <div style={{ fontSize: T.meta, color: C.textMuted }}>Визитов</div>
+                    </div>
+                  )}
+                </div>
+                {Object.keys(pilotMetrics.typeCounts || {}).length > 0 && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: T.meta, color: C.textMuted, marginBottom: 8 }}>Детализация по типам</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {Object.entries(pilotMetrics.typeCounts).sort((a, b) => b[1] - a[1]).map(([typeId, count]) => {
+                        const typeMeta = pilotEventTypes.find(item => item.id === typeId) || { label: typeId, icon: "📌" };
+                        return <div key={typeId} style={{ fontSize: T.body, color: C.text }}>{typeMeta.icon} {typeMeta.label} — <span style={{ fontWeight: 700 }}>{count}</span></div>;
+                      })}
+                    </div>
+                  </div>
+                )}
+                {(pilotMetrics.recentEvents || []).length > 0 && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: T.meta, color: C.textMuted, marginBottom: 8 }}>Последние события</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {pilotMetrics.recentEvents.map(event => (
+                        <div key={event.id} style={{ fontSize: T.body, color: C.text }}>{formatDate(event.date)} — {event.title}{event.factionName ? ` (${event.factionName})` : ""}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(pilotMetrics.topReasons || []).length > 0 && (
+                  <div>
+                    <div style={{ fontSize: T.meta, color: C.textMuted, marginBottom: 8 }}>Топ оснований</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {pilotMetrics.topReasons.map((item, index) => (
+                        <div key={item.reason} style={{ fontSize: T.body, color: C.text }}>{index + 1}. {item.reason} — <span style={{ fontWeight: 700 }}>{item.count}</span></div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <div className="resp-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginTop: 16 }}>
             <div><label style={S.label}>Коэффициент</label><select style={S.select} value={reviewForm.coefficient} onChange={e => setReviewForm(prev => ({ ...prev, coefficient: e.target.value }))}>{REPORT_COEFFICIENT_OPTIONS.map(value => <option key={value} value={value}>{formatCoefficient(value)}</option>)}</select></div>
             <div><label style={S.label}>Доп. премия (₽)</label><input style={S.input} type="number" min="0" step="1" value={reviewForm.extraAmount} onChange={e => setReviewForm(prev => ({ ...prev, extraAmount: e.target.value }))} /></div>
@@ -8488,7 +8636,7 @@ function SubjectPayoutOversightCard({ user, bonuses, users, positions, setBonuse
 
 function PageBonusApproval({ user, reports, setReports, bonuses, setBonuses, users, positions, addAudit, activityEvents, performanceReviews, setPerformanceReviews, factions, activitySettings }) {
   const queue = reports.filter(report => canFederalReviewReport(report, user)).sort((a, b) => new Date(a.date) - new Date(b.date));
-  const approvedBonuses = bonuses.filter(bonus => bonus.status === "approved");
+  const approvedBonuses = filterBonusesActiveUsers(bonuses, users).filter(bonus => bonus.status === "approved");
   const approvedFederalBonuses = approvedBonuses.filter(bonus => bonus.source === "federal_request" || (bonus.authorRole === "FEDERAL" && SUBJECTS.includes(bonus.subject)));
   const approvedTrackedBonuses = approvedBonuses.filter(bonus => isBonusPayoutTracked(bonus, users, positions));
   const approvedAwaitingDispatchBonuses = approvedTrackedBonuses.filter(bonus => isBonusAwaitingSubjectDispatch(bonus, users, positions));
@@ -8662,7 +8810,7 @@ function PageBonusApproval({ user, reports, setReports, bonuses, setBonuses, use
       <SubjectPayoutOversightCard user={user} bonuses={bonuses} users={users} positions={positions} setBonuses={setBonuses} addAudit={addAudit} />
       <div className="stat-row" style={{ ...S.row, marginBottom: 16 }}>
         <StatBox value={queue.length} label="Ожидают решения" color={C.warning} />
-        <StatBox value={bonuses.filter(b => b.status === "approved").length} label="Утверждено выплат" color={C.success} />
+        <StatBox value={approvedBonuses.length} label="Утверждено выплат" color={C.success} />
         <StatBox value={reports.filter(report => ["returned_boss", "returned_author"].includes(getReportStatusValue(report))).length} label="Возвращено" color={C.danger} />
       </div>
       <div className="resp-card" style={S.card}>
@@ -8767,6 +8915,70 @@ function PageBonusApproval({ user, reports, setReports, bonuses, setBonuses, use
               </div>
             )}
 
+            {!isFederalBonusRequest(selectedReport) && (() => {
+              const reviewReportUser = users.find(item => item.id === selectedReport.userId);
+              const reviewPeriodKey = selectedReport.periodKey || getReportPeriodKey(selectedReport.date);
+              const reviewMetrics = buildPilotMetricsSnapshot(reviewReportUser, activityEvents, factions, reviewPeriodKey, activitySettings);
+              const eventTypes = activitySettings?.eventTypes || DEFAULT_ACTIVITY_EVENT_TYPES;
+              if (reviewMetrics.totalEvents === 0) return null;
+              return (
+                <div style={{ padding: "14px 16px", background: C.bgInput, borderRadius: 8 }}>
+                  <div style={{ fontSize: T.bodyStrong, color: C.gold, marginBottom: 12 }}>Активность сотрудника за период</div>
+                  <div className="stat-row" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
+                    <div style={{ padding: "8px 14px", background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, minWidth: 100, textAlign: "center" }}>
+                      <div style={{ fontSize: T.title, fontWeight: 700, color: C.blue }}>{reviewMetrics.totalEvents}</div>
+                      <div style={{ fontSize: T.meta, color: C.textMuted }}>Событий</div>
+                    </div>
+                    <div style={{ padding: "8px 14px", background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, minWidth: 100, textAlign: "center" }}>
+                      <div style={{ fontSize: T.title, fontWeight: 700, color: C.success }}>{reviewMetrics.closedCases}</div>
+                      <div style={{ fontSize: T.meta, color: C.textMuted }}>Вынесено решений</div>
+                    </div>
+                    <div style={{ padding: "8px 14px", background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, minWidth: 100, textAlign: "center" }}>
+                      <div style={{ fontSize: T.title, fontWeight: 700, color: C.gold }}>{reviewMetrics.uniquePersons}</div>
+                      <div style={{ fontSize: T.meta, color: C.textMuted }}>Лиц в производстве</div>
+                    </div>
+                    {reviewMetrics.visitsCount > 0 && (
+                      <div style={{ padding: "8px 14px", background: C.bgCard, borderRadius: 8, border: `1px solid ${C.border}`, minWidth: 100, textAlign: "center" }}>
+                        <div style={{ fontSize: T.title, fontWeight: 700, color: C.blueLight || C.blue }}>{reviewMetrics.visitsCount}</div>
+                        <div style={{ fontSize: T.meta, color: C.textMuted }}>Визитов</div>
+                      </div>
+                    )}
+                  </div>
+                  {Object.keys(reviewMetrics.typeCounts || {}).length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: T.meta, color: C.textMuted, marginBottom: 8 }}>Детализация по типам</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        {Object.entries(reviewMetrics.typeCounts).sort((a, b) => b[1] - a[1]).map(([typeId, count]) => {
+                          const typeMeta = eventTypes.find(item => item.id === typeId) || { label: typeId, icon: "📌" };
+                          return <div key={typeId} style={{ fontSize: T.body, color: C.text }}>{typeMeta.icon} {typeMeta.label} — <span style={{ fontWeight: 700 }}>{count}</span></div>;
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {(reviewMetrics.recentEvents || []).length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: T.meta, color: C.textMuted, marginBottom: 8 }}>Последние события</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        {reviewMetrics.recentEvents.map(event => (
+                          <div key={event.id} style={{ fontSize: T.body, color: C.text }}>{formatDate(event.date)} — {event.title}{event.factionName ? ` (${event.factionName})` : ""}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(reviewMetrics.topReasons || []).length > 0 && (
+                    <div>
+                      <div style={{ fontSize: T.meta, color: C.textMuted, marginBottom: 8 }}>Топ оснований</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        {reviewMetrics.topReasons.map((item, index) => (
+                          <div key={item.reason} style={{ fontSize: T.body, color: C.text }}>{index + 1}. {item.reason} — <span style={{ fontWeight: 700 }}>{item.count}</span></div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             <div className="resp-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
               <div>
                 <label style={S.label}>Коэффициент</label>
@@ -8815,7 +9027,7 @@ function PageSubjectsOverview({ users, reports, bonuses }) {
       <div style={{display:"flex",flexDirection:"column",gap:16}}>{SUBJECTS.map(sub=>{
         const su=users.filter(u=>u.subject===sub&&!u.blocked);const sr=reports.filter(r=>isOperationalReport(r) && su.find(u=>u.id===r.userId));
         const latestReport=getLatestReportDate(sr);const boss=su.find(u=>u.role==="BOSS");
-        const totalBonus=bonuses.filter(b=>b.subject===sub&&b.status==="approved").reduce((s,b)=>s+b.amount,0);
+        const totalBonus=filterBonusesActiveUsers(bonuses,users).filter(b=>b.subject===sub&&b.status==="approved").reduce((s,b)=>s+b.amount,0);
         return(<div key={sub} style={{...S.card,borderLeft:`3px solid ${C.gold}`}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:12}}><div style={{fontSize:T.heading,fontWeight:700,color:C.gold}}>{sub}</div><span style={badge(C.blue)}>{su.length} сотр.</span></div>
           <div style={S.row}><div style={{flex:1}}><div style={{fontSize:T.meta,color:C.textMuted}}>Прокурор субъекта</div><div style={{fontSize:T.body,color:C.text,marginTop:4}}>{boss?`${boss.surname} ${boss.name}`:"Не назначен"}</div></div><div style={{flex:1}}><div style={{fontSize:T.meta,color:C.textMuted}}>Последний отчёт</div><div style={{fontSize:T.body,color:C.text,marginTop:4}}>{latestReport?formatDate(latestReport):"—"}</div></div><div style={{flex:1}}><div style={{fontSize:T.meta,color:C.textMuted}}>Отчётов</div><div style={{fontSize:T.body,color:C.text,marginTop:4}}>{sr.length}</div></div><div style={{flex:1}}><div style={{fontSize:T.meta,color:C.textMuted}}>Премий выплачено</div><div style={{fontSize:T.body,color:C.success,marginTop:4}}>{totalBonus.toLocaleString()}₽</div></div></div>
@@ -8825,13 +9037,64 @@ function PageSubjectsOverview({ users, reports, bonuses }) {
   );
 }
 
+function PersonnelCasesBlock({ userId }) {
+  const [cases, setCases] = useState([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!userId) { setCases([]); return; }
+    setLoading(true);
+    apiRequest("cases.list", { userId, tab: "all" })
+      .then(res => setCases(Array.isArray(res.items) ? res.items : []))
+      .catch(() => setCases([]))
+      .finally(() => setLoading(false));
+  }, [userId]);
+  if (!userId) return null;
+  const activeCases = cases.filter(c => !["archive", "completed"].includes(c.status));
+  return (
+    <div style={{ background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18 }}>
+      <div style={{ ...S.cardTitle, marginBottom: 12 }}>Обращения / жалобы в работе</div>
+      {loading ? (
+        <div style={{ fontSize: T.body, color: C.textMuted }}>Загрузка...</div>
+      ) : activeCases.length === 0 ? (
+        <div style={{ fontSize: T.body, color: C.textMuted }}>Нет активных обращений или жалоб.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {activeCases.map(c => {
+            const statusMeta = CASE_STATUSES?.[c.status] || { label: c.status, color: C.textMuted };
+            const isCreator = c.createdBy === userId;
+            const isAssigned = c.assignedStaffId === userId;
+            const isSupervisor = c.supervisorId === userId;
+            const roleLabels = [isCreator && "автор", isAssigned && "исполнитель", isSupervisor && "прокурор"].filter(Boolean).join(", ");
+            return (
+              <div key={c.id} style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                  <div style={{ fontSize: T.body, color: C.text }}>
+                    <span style={{ fontWeight: 700 }}>{c.regNumber}</span>
+                    {" — "}
+                    <span style={{ color: statusMeta.color || C.textMuted }}>{statusMeta.label || c.status}</span>
+                    {roleLabels && <span style={{ fontSize: T.meta, color: C.textDim, marginLeft: 8 }}>({roleLabels})</span>}
+                  </div>
+                  <div style={{ fontSize: T.meta, color: C.textMuted, whiteSpace: "nowrap" }}>{c.caseType === "appeal" ? "Обращение" : "Жалоба"}</div>
+                </div>
+                {c.applicantName && <div style={{ fontSize: T.meta, color: C.textMuted, marginTop: 4 }}>Заявитель: {c.applicantName}</div>}
+                {c.deadline && <div style={{ fontSize: T.meta, color: C.textMuted, marginTop: 2 }}>Срок: {formatDate(c.deadline)}</div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ═══════════════ PAGE: PERSONNEL SUMMARY ═══════════════ */
-function PagePersonnelSummary({ currentUser, users, reports, bonuses, positions, classRanks, medals, setUsers, setReports, setBonuses, addAudit, isPreviewMode }) {
+function PagePersonnelSummary({ currentUser, users, reports, bonuses, positions, classRanks, medals, setUsers, setReports, setBonuses, addAudit, isPreviewMode, activityEvents, factions, activitySettings }) {
   const allPositions = Object.values(positions || {}).flat();
   const assignableRoles = getAssignableRoles(currentUser);
   const assignableSubjects = getAssignableSubjects(currentUser);
   const permissionLevel = getUserPermissionLevel(currentUser);
-  const canEditProfiles = typeof setUsers === "function" && permissionLevel >= 2 && !isPreviewMode;
+  const isBossRole = currentUser?.role === "BOSS";
+  const canEditProfiles = typeof setUsers === "function" && (permissionLevel >= 2 || isBossRole) && !isPreviewMode;
   const canDismissProfiles = canEditProfiles && typeof setReports === "function" && typeof setBonuses === "function";
   const activeUsers = users
     .filter(user => !user.blocked && (permissionLevel >= 2 || user.subject === currentUser?.subject))
@@ -8938,11 +9201,12 @@ function PagePersonnelSummary({ currentUser, users, reports, bonuses, positions,
     ? bonuses.filter(item => item.userId === selectedUser.id && item.status === "approved")
     : [];
   const selectedTotalBonus = selectedApprovedBonuses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const canEditSelectedUser = canEditProfiles && !!selectedUser && (canManageSystemAdminFlag || !selectedUser.isSystemAdmin);
+  const canEditSelectedUser = canEditProfiles && !!selectedUser && (canManageSystemAdminFlag || !selectedUser.isSystemAdmin) && (!isBossRole || (selectedUser.subject === currentUser?.subject && !["BOSS", "FEDERAL"].includes(selectedUser.role)));
   const canDismissSelectedUser = canDismissProfiles
     && !!selectedUser
     && selectedUser.id !== currentUser?.id
-    && (canManageSystemAdminFlag || !selectedUser.isSystemAdmin);
+    && (canManageSystemAdminFlag || !selectedUser.isSystemAdmin)
+    && (!isBossRole || (selectedUser.subject === currentUser?.subject && selectedUser.role !== "FEDERAL"));
   const selectedSubjectOptions = selectedUser && selectedUser.role === "FEDERAL"
     ? [GENERAL_SUBJECT]
     : assignableSubjects.filter(subject => subject !== GENERAL_SUBJECT);
@@ -9048,8 +9312,8 @@ function PagePersonnelSummary({ currentUser, users, reports, bonuses, positions,
           )}
 
           <div className="stat-row" style={{ ...S.row, marginTop: 18, marginBottom: 18 }}>
-            <StatBox value={selectedReports.length} label="Отчётов в архиве" color={C.blue} />
-            <StatBox value={selectedReports[0] ? getReportStoredPeriodLabel(selectedReports[0]) : "—"} label="Последний период" color={C.gold} />
+            <StatBox value={selectedUser ? (activityEvents || []).filter(e => e.authorUserId === selectedUser.id).length : 0} label="Записей в журнале" color={C.blue} />
+            <StatBox value={selectedReports.length} label="Отчётов" color={C.gold} />
             <StatBox value={formatCurrency(selectedTotalBonus)} label="Утверждено премий" color={C.success} />
             <StatBox value={selectedApprovedBonuses.length} label="Выплат утверждено" color={C.accentLight} />
           </div>
@@ -9091,22 +9355,6 @@ function PagePersonnelSummary({ currentUser, users, reports, bonuses, positions,
                 <div>
                   <label style={S.label}>Логин</label>
                   <input style={{ ...S.input, opacity: 0.9 }} value={selectedUser.login || ""} readOnly />
-                </div>
-
-                <div>
-                  <label style={S.label}>Пароль</label>
-                  <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
-                    <input
-                      style={{ ...S.input, flex: 1, fontFamily: F.mono, letterSpacing: 1 }}
-                      value={revealedPassword}
-                      readOnly
-                      placeholder="Нажмите «Показать пароль»"
-                    />
-                    <button className="btn-hover" style={btn("ghost")} onClick={revealedPassword ? () => setRevealedPassword("") : revealPassword} disabled={passwordBusy}>
-                      {passwordBusy ? "..." : revealedPassword ? "Скрыть" : "Показать пароль"}
-                    </button>
-                  </div>
-                  {passwordError && <div style={{ fontSize: T.meta, color: C.dangerLight, marginTop: 6 }}>{passwordError}</div>}
                 </div>
 
                 <div>
@@ -9226,61 +9474,47 @@ function PagePersonnelSummary({ currentUser, users, reports, bonuses, positions,
               </div>
             </div>
 
-            <div style={{ background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18 }}>
-              <div style={{ ...S.cardTitle, marginBottom: 12 }}>Отчёты за все месяцы</div>
-              {selectedReports.length === 0 ? (
-                <div style={{ fontSize: T.body, color: C.textMuted }}>
-                  У сотрудника пока нет сохранённых месячных отчётов.
+            {(() => {
+              const userEvents = selectedUser ? (activityEvents || [])
+                .filter(e => e.authorUserId === selectedUser.id)
+                .sort((a, b) => new Date(getActivityEventDate(b) || 0) - new Date(getActivityEventDate(a) || 0))
+                : [];
+              const eventTypes = activitySettings?.eventTypes || DEFAULT_ACTIVITY_EVENT_TYPES;
+              return (
+                <div style={{ background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18 }}>
+                  <div style={{ ...S.cardTitle, marginBottom: 12 }}>Записи в журнале деятельности</div>
+                  {userEvents.length === 0 ? (
+                    <div style={{ fontSize: T.body, color: C.textMuted }}>У сотрудника пока нет записей в журнале деятельности.</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {userEvents.slice(0, 30).map(event => {
+                        const typeMeta = eventTypes.find(t => t.id === event.type) || { label: event.type, icon: "📌", color: C.textMuted };
+                        const shortLabel = EVENT_TYPE_SHORT_LABELS[event.type] || typeMeta.label;
+                        const factionName = getFactionNameById(factions, event.factionId);
+                        const reason = event?.personRecord?.reason || "";
+                        const targetName = event?.personRecord?.targetFullName || "";
+                        return (
+                          <div key={event.id} style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                              <div style={{ fontSize: T.body, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {typeMeta.icon} <span style={{ fontWeight: 700, color: typeMeta.color }}>{shortLabel}</span>
+                                {targetName ? ` — ${targetName}` : ""}
+                                {factionName ? ` (${factionName})` : ""}
+                              </div>
+                              <div style={{ fontSize: T.meta, color: C.textMuted, whiteSpace: "nowrap" }}>{formatDate(getActivityEventDate(event))}</div>
+                            </div>
+                            {reason && <div style={{ fontSize: T.meta, color: C.textMuted, marginTop: 4 }}>{reason}</div>}
+                          </div>
+                        );
+                      })}
+                      {userEvents.length > 30 && <div style={{ fontSize: T.meta, color: C.textMuted, textAlign: "center" }}>Показаны последние 30 из {userEvents.length} записей</div>}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {selectedReports.map(report => {
-                    const status = getReportStatusMeta(report);
-                    const entries = getReportEntries(report);
-                    const eventDate = getNotificationEventDate(report);
+              );
+            })()}
 
-                    return (
-                      <div key={report.id} style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                            <span style={{ fontSize: T.bodyStrong, color: C.text, fontWeight: 700 }}>{getReportStoredPeriodLabel(report)}</span>
-                            <span style={badge(status.color)}>{status.label}</span>
-                          </div>
-                          <div style={{ fontSize: T.meta, color: C.textMuted }}>
-                            {eventDate ? formatDateTime(eventDate) : "Без даты"}
-                          </div>
-                        </div>
-
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-                          <span style={S.tag}>Заполнено пунктов: {getReportFilledCount(report)}</span>
-                          <span style={S.tag}>Всего выполнений: {getReportTotalQuantity(report)}</span>
-                          {report.savedAt && <span style={S.tag}>Сохранён: {formatDateTime(report.savedAt)}</span>}
-                        </div>
-
-                        {report.note && (
-                          <div style={{ fontSize: T.body, color: C.textDim, lineHeight: 1.55, marginBottom: 10 }}>
-                            <span style={{ color: C.textMuted }}>Комментарий автора:</span> {report.note}
-                          </div>
-                        )}
-                        {report.returnComment && (
-                          <div style={{ fontSize: T.body, color: C.dangerLight, lineHeight: 1.55, marginBottom: 10 }}>
-                            <span style={{ color: C.dangerLight }}>Возвращён с комментарием:</span> {report.returnComment}
-                          </div>
-                        )}
-
-                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                          {entries.length > 0 ? (
-                            entries.map(entry => <ReportEntryView key={`${report.id}-${entry.criteriaId}`} entry={entry} reportId={report.id} />)
-                          ) : (
-                            <div style={{ fontSize: T.body, color: C.textMuted }}>В этом отчёте нет заполненных пунктов.</div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <PersonnelCasesBlock userId={selectedUser?.id} />
           </div>
           {showDismissConfirm && (
             <Modal onClose={() => setShowDismissConfirm(false)} maxWidth={560}>

@@ -4395,7 +4395,7 @@ define('CASES_STATUS_TRANSITIONS', [
     'verdict_partial'           => ['completed'],
     'verdict_acquitted'         => ['completed'],
     'completed'                 => ['archive'],
-    'archive'                   => [],
+    'archive'                   => ['registered'],
 ]);
 
 define('CASES_TERMINAL_STATUSES', ['completed', 'archive', 'check_terminated', 'criminal_case_refused', 'prosecution_refused']);
@@ -4595,6 +4595,14 @@ function cases_user_can_change_status(?array $user, array $case, string $newStat
     $allowed = CASES_STATUS_TRANSITIONS[$currentStatus] ?? [];
     if (!in_array($newStatus, $allowed, true)) return false;
 
+    // Return from archive: only BOSS (same subject), FEDERAL, or admin
+    if ($currentStatus === 'archive') {
+        if (has_system_admin_access($user)) return true;
+        if (($user['role'] ?? '') === 'FEDERAL') return true;
+        if (($user['role'] ?? '') === 'BOSS' && ($user['subject'] ?? '') === ($case['subject'] ?? '')) return true;
+        return false;
+    }
+
     if (has_system_admin_access($user)) return true;
     if (($user['role'] ?? '') === 'FEDERAL') return true;
     if (in_array($user['role'] ?? '', ['BOSS', 'SENIOR_STAFF', 'USP'], true) && ($user['subject'] ?? '') === ($case['subject'] ?? '')) return true;
@@ -4790,6 +4798,7 @@ function cases_build_discord_embed(string $event, array $data): array
 
         // People
         $people = [];
+        if (!empty($data['createdByName']))  $people[] = '📝 **Зарегистрировал:** ' . $data['createdByName'];
         if (!empty($data['assignedName']))   $people[] = '👤 **Исполнитель:** ' . $data['assignedName'];
         if (!empty($data['supervisorName'])) $people[] = '👁 **Прокурор:** ' . $data['supervisorName'];
         if (!empty($data['skExecutorName'])) $people[] = '🔍 **Следователь:** ' . $data['skExecutorName'];
@@ -5146,6 +5155,8 @@ function cases_handle_create(PDO $pdo, array &$state): void
     }
 
     // Discord webhook
+    $creatorFullName = trim(($user['surname'] ?? '') . ' ' . ($user['name'] ?? ''));
+    if ($creatorFullName === '') $creatorFullName = $user['login'] ?? 'Неизвестно';
     cases_dispatch_webhook('case.created', [
         '_pdo' => $pdo,
         'caseId' => $id,
@@ -5158,6 +5169,7 @@ function cases_handle_create(PDO $pdo, array &$state): void
         'factionId' => $factionId,
         'assignedName' => $formatted['assignedStaffName'],
         'supervisorName' => $formatted['supervisorName'],
+        'createdByName' => $creatorFullName,
         'deadline' => $deadline,
         'status' => CASES_STATUSES[$status],
         'forumLink' => $forumLink,
@@ -5180,6 +5192,8 @@ function cases_handle_list(PDO $pdo, array &$state): void
     $params = [];
 
     $role = $user['role'] ?? '';
+    $userIdFilter = trim((string)($body['userId'] ?? ''));
+
     if ($role === 'STAFF') {
         $sql .= ' AND (assigned_staff_id = :uid OR supervisor_id = :uid2 OR created_by = :uid3)';
         $params[':uid'] = $user['id'];
@@ -5190,6 +5204,16 @@ function cases_handle_list(PDO $pdo, array &$state): void
         $params[':subject'] = $user['subject'] ?? '';
     }
     // FEDERAL and ADMIN see all
+
+    // Filter by specific user (created_by or assigned)
+    if ($userIdFilter !== '' && in_array($role, ['BOSS', 'SENIOR_STAFF', 'FEDERAL'], true) || has_system_admin_access($user)) {
+        if ($userIdFilter !== '') {
+            $sql .= ' AND (created_by = :filter_uid OR assigned_staff_id = :filter_uid2 OR supervisor_id = :filter_uid3)';
+            $params[':filter_uid'] = $userIdFilter;
+            $params[':filter_uid2'] = $userIdFilter;
+            $params[':filter_uid3'] = $userIdFilter;
+        }
+    }
 
     if ($statusFilter !== '' && isset(CASES_STATUSES[$statusFilter])) {
         $sql .= ' AND status = :status';
@@ -5337,7 +5361,10 @@ function cases_handle_get(PDO $pdo, array &$state): void
     $formatted['commentsThread'] = $comments;
     $formatted['links'] = $links;
     $formatted['audit'] = $audit;
-    $formatted['allowedTransitions'] = CASES_STATUS_TRANSITIONS[$row['status']] ?? [];
+    $allTransitions = CASES_STATUS_TRANSITIONS[$row['status']] ?? [];
+    $formatted['allowedTransitions'] = array_values(array_filter($allTransitions, function($t) use ($user, $row) {
+        return cases_user_can_change_status($user, $row, $t);
+    }));
 
     respond(200, ['ok' => true, 'detail' => $formatted]);
 }
