@@ -11398,7 +11398,6 @@ function App() {
       case "cases": return <PageCases {...props} currentUser={currentUser} casesMeta={casesMeta} onRefresh={() => void bootstrapApp({ background: true })} />;
       case "subject-control": return <PageSubjectControl {...props} setReports={setReportsView} setPerformanceReviews={setPerformanceReviewsView} addAudit={addAuditView} />;
       case "analytics": return <PageAnalytics {...props} setActivityEvents={setActivityEventsView} addAudit={addAuditView} />;
-      case "pilot-factions-summary": return <PageAnalytics {...props} setActivityEvents={setActivityEventsView} addAudit={addAuditView} />;
       case "registration-requests":
         return hasSystemAdminAccess(currentUser)
           ? renderAdminPanel("registration-requests")
@@ -11409,9 +11408,7 @@ function App() {
           : <PageUsers {...props} setUsers={setUsersManaged} />;
       case "orders": return <PageOrders />;
       case "bonus-approval": return <PageBonusApproval {...props} setReports={setReportsView} setBonuses={setBonusesView} setPerformanceReviews={setPerformanceReviewsView} addAudit={addAuditView} />;
-      case "subjects-overview": return <PageAnalytics {...props} setActivityEvents={setActivityEventsView} addAudit={addAuditView} />;
       case "personnel-summary": return <PagePersonnelSummary {...props} setUsers={setUsersView} setReports={setReportsView} setBonuses={setBonusesView} addAudit={addAuditView} />;
-      case "directives": return <PageAnalytics {...props} setActivityEvents={setActivityEventsView} addAudit={addAuditView} />;
       case "audit-log": return <PageAuditLog auditLog={auditLog} />;
       case "factions":
         return hasSystemAdminAccess(effectiveUser)

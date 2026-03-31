@@ -58,15 +58,12 @@ function hash_password(string $password): string
 
 function verify_password(string $password, string $hash): bool
 {
-    if (password_get_info($hash)['algo'] === null && $hash === $password) {
-        return true;
-    }
     return password_verify($password, $hash);
 }
 
 function needs_rehash(string $hash): bool
 {
-    return password_get_info($hash)['algo'] === null || password_needs_rehash($hash, PASSWORD_BCRYPT);
+    return password_needs_rehash($hash, PASSWORD_BCRYPT);
 }
 
 function generate_csrf_token(): string
@@ -438,7 +435,25 @@ function ensure_schema(PDO $pdo): void
         'CREATE TABLE IF NOT EXISTS app_state (
             state_key VARCHAR(64) NOT NULL PRIMARY KEY,
             state_value LONGTEXT NOT NULL,
+            version BIGINT UNSIGNED NOT NULL DEFAULT 0,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
+    );
+    // C2: Add version column to existing tables that lack it (idempotent)
+    try {
+        $pdo->exec('ALTER TABLE app_state ADD COLUMN version BIGINT UNSIGNED NOT NULL DEFAULT 0');
+    } catch (\Throwable $e) {
+        // Column already exists — ignore
+    }
+
+    // H3: Separate audit_log table — INSERT-only, no full-array rewrites
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS audit_log (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            action VARCHAR(512) NOT NULL,
+            user_id VARCHAR(64) DEFAULT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_created_at (created_at)
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
     );
 }
@@ -455,9 +470,9 @@ function save_state_key(PDO $pdo, string $key, $value): void
     }
 
     $stmt = $pdo->prepare(
-        'INSERT INTO app_state (state_key, state_value)
-         VALUES (:state_key, :state_value)
-         ON DUPLICATE KEY UPDATE state_value = VALUES(state_value), updated_at = CURRENT_TIMESTAMP'
+        'INSERT INTO app_state (state_key, state_value, version)
+         VALUES (:state_key, :state_value, 1)
+         ON DUPLICATE KEY UPDATE state_value = VALUES(state_value), version = version + 1, updated_at = CURRENT_TIMESTAMP'
     );
     $stmt->execute([
         ':state_key' => $key,
@@ -497,10 +512,12 @@ function seed_state(PDO $pdo): bool
 function load_state(PDO $pdo): array
 {
     $defaults = create_default_state();
-    $rows = $pdo->query('SELECT state_key, state_value FROM app_state')->fetchAll();
+    $rows = $pdo->query('SELECT state_key, state_value, version FROM app_state')->fetchAll();
     $indexed = [];
+    $versions = [];
     foreach ($rows as $row) {
         $indexed[$row['state_key']] = $row['state_value'];
+        $versions[$row['state_key']] = (int)($row['version'] ?? 0);
     }
 
     $state = [];
@@ -538,6 +555,30 @@ function load_state(PDO $pdo): array
         }
 
         $state[$key] = $decoded;
+    }
+
+    // C2: Expose per-key version numbers so clients can detect concurrent edits
+    $state['_versions'] = $versions;
+
+    // H3: Load last 300 audit entries from dedicated table (O(1) append, bounded read)
+    try {
+        $auditRows = $pdo->query(
+            'SELECT action, user_id, created_at FROM audit_log ORDER BY id DESC LIMIT 300'
+        )->fetchAll(PDO::FETCH_ASSOC);
+        $auditLog = [];
+        foreach (array_reverse($auditRows) as $row) {
+            $auditLog[] = [
+                'action' => $row['action'],
+                'userId' => $row['user_id'],
+                'date'   => $row['created_at'],
+            ];
+        }
+        $state['auditLog'] = $auditLog;
+    } catch (\Throwable $e) {
+        // Table may not exist yet on first deploy; fall back to app_state value
+        if (!isset($state['auditLog'])) {
+            $state['auditLog'] = [];
+        }
     }
 
     return $state;
@@ -992,14 +1033,110 @@ function merge_users_preserving_passwords(array $existingUsers, array $incomingU
     return $incomingUsers;
 }
 
+/**
+ * C1: Validate that a BOSS user is not mutating users outside their subject
+ * or elevating roles beyond their authority. Returns error string or null.
+ */
+function validate_users_mutation_by_boss(array $currentUsers, array $incomingUsers, array $bossUser): ?string
+{
+    $bossSubject = $bossUser['subject'] ?? '';
+    $allowedTargetRoles = ['STAFF', 'SENIOR_STAFF', 'USP', 'BOSS'];
+
+    $currentById = [];
+    foreach ($currentUsers as $u) {
+        if (isset($u['id'])) {
+            $currentById[$u['id']] = $u;
+        }
+    }
+    $incomingById = [];
+    foreach ($incomingUsers as $u) {
+        if (isset($u['id'])) {
+            $incomingById[$u['id']] = $u;
+        }
+    }
+
+    // Check for deleted users: BOSS may only delete users within their subject
+    foreach ($currentById as $id => $existing) {
+        if (!array_key_exists($id, $incomingById)) {
+            // User was removed
+            $existingSubject = $existing['subject'] ?? '';
+            $existingRole   = $existing['role'] ?? '';
+            if ($existingSubject !== $bossSubject) {
+                return 'Нельзя удалять сотрудников другого субъекта';
+            }
+            if (!in_array($existingRole, $allowedTargetRoles, true)) {
+                return 'Нельзя удалять сотрудников с данной ролью';
+            }
+        }
+    }
+
+    // Check for added or modified users
+    foreach ($incomingById as $id => $incoming) {
+        $incomingSubject = $incoming['subject'] ?? '';
+        $incomingRole    = $incoming['role'] ?? '';
+
+        if (!array_key_exists($id, $currentById)) {
+            // New user being added — only ADMIN should do this, deny for BOSS
+            return 'Создание пользователей не разрешено через этот запрос';
+        }
+
+        $existing        = $currentById[$id];
+        $existingSubject = $existing['subject'] ?? '';
+        $existingRole    = $existing['role'] ?? '';
+
+        // BOSS may only touch users in their own subject
+        if ($existingSubject !== $bossSubject) {
+            // If nothing changed for this user, allow (e.g. full array passed through)
+            $changed = ($incoming !== array_merge($existing, ['password' => $existing['password'] ?? '']));
+            // Simpler: compare all non-password fields
+            $incomingFiltered = $incoming;
+            $existingFiltered = $existing;
+            unset($incomingFiltered['password'], $existingFiltered['password']);
+            if ($incomingFiltered !== $existingFiltered) {
+                return 'Нельзя изменять сотрудников другого субъекта';
+            }
+            continue;
+        }
+
+        // Within own subject: may not touch FEDERAL/ADMIN users
+        if (!in_array($existingRole, $allowedTargetRoles, true)) {
+            $incomingFiltered = $incoming;
+            $existingFiltered = $existing;
+            unset($incomingFiltered['password'], $existingFiltered['password']);
+            if ($incomingFiltered !== $existingFiltered) {
+                return 'Нельзя изменять сотрудников с данной ролью';
+            }
+            continue;
+        }
+
+        // May not elevate role to FEDERAL or ADMIN
+        if (!in_array($incomingRole, $allowedTargetRoles, true)) {
+            return 'Нельзя назначать эту роль';
+        }
+
+        // May not change subject
+        if ($incomingSubject !== $bossSubject) {
+            return 'Нельзя переводить сотрудников в другой субъект';
+        }
+    }
+
+    return null;
+}
+
 function append_audit(PDO $pdo, array &$state, string $action, ?string $userId): void
 {
+    // H3: INSERT into dedicated table instead of rewriting full JSON array
+    $stmt = $pdo->prepare(
+        'INSERT INTO audit_log (action, user_id) VALUES (:action, :user_id)'
+    );
+    $stmt->execute([':action' => $action, ':user_id' => $userId]);
+
+    // Keep in-memory state in sync (used by ensure_tester_seed within same request)
     $state['auditLog'][] = [
         'action' => $action,
-        'date' => now_iso(),
+        'date'   => now_iso(),
         'userId' => $userId,
     ];
-    save_state_key($pdo, 'auditLog', $state['auditLog']);
 }
 
 function ensure_tester_seed(PDO $pdo, array &$state): void
@@ -1451,7 +1588,7 @@ try {
 
         $isBoss = ($user['role'] ?? '') === 'BOSS'
             && ($user['subject'] ?? '') === ($targetUser['subject'] ?? '')
-            && in_array($targetUser['role'] ?? '', ['STAFF', 'SENIOR_STAFF', 'BOSS'], true);
+            && in_array($targetUser['role'] ?? '', ['STAFF', 'SENIOR_STAFF', 'USP', 'BOSS'], true);
 
         if (!has_system_admin_access($user) && !$isBoss) {
             respond(403, ['ok' => false, 'error' => 'Недостаточно прав для сброса пароля']);
@@ -1485,6 +1622,12 @@ try {
     }
 
     if ($action === 'submit-registration') {
+        // H2: Rate-limit registration submissions (3 per 15 min per session)
+        if (!check_rate_limit('submit_registration', 3, 900)) {
+            respond(429, ['ok' => false, 'error' => 'Слишком много заявок. Повторите попытку позже.']);
+        }
+        record_rate_limit('submit_registration');
+
         $body = read_json_body();
         $fullName = trim((string)($body['login'] ?? ''));
         $password = (string)($body['password'] ?? '');
@@ -1826,7 +1969,27 @@ try {
             respond(403, ['ok' => false, 'error' => 'Недостаточно прав для изменения этих данных']);
         }
 
+        // C2: Opt-in optimistic locking — reject if client's version is stale
+        $clientVersion = $body['clientVersion'] ?? null;
+        if ($clientVersion !== null) {
+            $serverVersion = (int)(($state['_versions'] ?? [])[$key] ?? 0);
+            if ((int)$clientVersion !== $serverVersion) {
+                respond(409, [
+                    'ok'            => false,
+                    'error'         => 'Данные были изменены другой сессией. Обновите страницу.',
+                    'serverVersion' => $serverVersion,
+                ]);
+            }
+        }
+
         if ($key === 'users' && is_array($value)) {
+            // C1: BOSS may only mutate users within their own subject/role scope
+            if (($user['role'] ?? '') === 'BOSS') {
+                $mutationError = validate_users_mutation_by_boss($state['users'], $value, $user);
+                if ($mutationError !== null) {
+                    respond(403, ['ok' => false, 'error' => $mutationError]);
+                }
+            }
             $value = merge_users_preserving_passwords($state['users'], $value);
         }
 
