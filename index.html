@@ -131,12 +131,20 @@
   /* Page transition */
   @keyframes pageSlide { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
   .page-transition { animation: pageSlide 0.35s ease; }
+  /* Card stagger */
+  @keyframes cardAppear { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .page-transition .stat-row > * { animation: cardAppear 0.35s ease both; }
+  .page-transition .stat-row > *:nth-child(1) { animation-delay: 60ms; }
+  .page-transition .stat-row > *:nth-child(2) { animation-delay: 110ms; }
+  .page-transition .stat-row > *:nth-child(3) { animation-delay: 160ms; }
+  .page-transition .stat-row > *:nth-child(4) { animation-delay: 210ms; }
+  .page-transition .stat-row > *:nth-child(5) { animation-delay: 260ms; }
   /* Pull-to-refresh indicator */
   .pull-indicator { display: none; text-align: center; padding: 10px; color: #8ea5c7; font-size: 13px; }
   .pull-indicator.visible { display: block; animation: fadeIn 0.3s ease; }
   /* Focus visible for accessibility */
-  :focus-visible { outline: 2px solid #5bc0eb; outline-offset: 2px; }
-  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #5bc0eb; outline-offset: 2px; }
+  :focus-visible { outline: 2px solid #c9a84c; outline-offset: 2px; }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #c9a84c; outline-offset: 2px; }
   /* Light theme body override */
   body.light-theme { background: #f0f4f8 !important; color: #1a1d21 !important; }
   body.light-theme ::-webkit-scrollbar-track { background: #f0f4f8; }
@@ -162,12 +170,17 @@
   .nav-item { transition: all 0.2s ease; position: relative; }
   .nav-item::before {
     content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-    width: 3px; height: 0; background: #5bc0eb; border-radius: 0 2px 2px 0;
-    transition: height 0.2s ease;
+    width: 3px; height: 0; background: #c9a84c; border-radius: 0 2px 2px 0;
+    transition: height 0.2s ease; box-shadow: 2px 0 8px #c9a84c55;
   }
   .nav-item.nav-active::before { height: 60%; }
-  .nav-item.nav-active { background: #023e8a30 !important; }
+  .nav-item.nav-active { background: #c9a84c12 !important; }
 
+  /* Sticky table header + zebra striping (auto-applied to all wrapped tables) */
+  .responsive-table-wrap thead th { position: sticky; top: 0; z-index: 2; background: #06152f; backdrop-filter: blur(6px); }
+  .responsive-table-wrap tbody tr:nth-child(even) { background: rgba(13,40,90,0.28); }
+  body.light-theme .responsive-table-wrap thead th { background: #e8eef6; }
+  body.light-theme .responsive-table-wrap tbody tr:nth-child(even) { background: rgba(0,119,182,0.04); }
   /* Footer disclaimer styling */
   .app-footer-disclaimer {
     border-top: 1px solid #174b9844; margin-top: 40px; padding-top: 20px;
@@ -175,7 +188,7 @@
   }
 
   /* Onboarding pulse */
-  @keyframes onboardPulse { 0%, 100% { box-shadow: 0 0 0 0 #5bc0eb44; } 50% { box-shadow: 0 0 0 8px #5bc0eb00; } }
+  @keyframes onboardPulse { 0%, 100% { box-shadow: 0 0 0 0 #c9a84c44; } 50% { box-shadow: 0 0 0 8px #c9a84c00; } }
   .onboard-highlight { animation: onboardPulse 2s ease infinite; }
 </style>
 </head>
@@ -2641,7 +2654,7 @@ const S = {
   pageTitle: { fontSize: T.page, fontWeight: 700, color: C.text, letterSpacing: 0.6, marginBottom: 8, fontFamily: F.heading },
   pageSubtitle: { fontSize: T.body, color: C.textMuted, marginBottom: 28, letterSpacing: 0.2 },
   row: { display: "flex", gap: 14, flexWrap: "wrap" },
-  statBox: { background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: "20px 22px", flex: 1, minWidth: 160 },
+  statBox: { background: C.bgCard, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.gold}`, borderRadius: 10, padding: "20px 22px", flex: 1, minWidth: 160 },
   tag: { display: "inline-block", padding: "4px 10px", borderRadius: 999, fontSize: T.meta, background: C.bgInput, color: C.textDim, marginRight: 4 },
 };
 
@@ -2651,7 +2664,7 @@ function badge(color) {
 
 function btn(variant) {
   const map = {
-    gold: { bg: C.gold, color: "#f7fbfa" },
+    gold: { bg: `linear-gradient(135deg, ${C.gold} 0%, ${C.goldLight} 100%)`, color: "#1a0e00", shadow: `0 4px 18px ${C.gold}55` },
     crimson: { bg: C.crimson, color: "#f7fbfa" },
     ghost: { bg: "transparent", color: C.textDim, border: `1px solid ${C.border}` },
     subtle: { bg: C.bgCard, color: C.text, border: `1px solid ${C.border}` },
@@ -2659,7 +2672,7 @@ function btn(variant) {
     success: { bg: C.success, color: "#fff" },
   };
   const v = map[variant] || map.gold;
-  return { padding: "11px 22px", minHeight: 44, background: v.bg, color: v.color, border: v.border || "none", borderRadius: 8, cursor: "pointer", fontSize: T.body, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", fontFamily: F.body, transition: "all 0.15s" };
+  return { padding: "11px 22px", minHeight: 44, background: v.bg, color: v.color, border: v.border || "none", borderRadius: 8, cursor: "pointer", fontSize: T.body, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", fontFamily: F.body, transition: "all 0.15s", boxShadow: v.shadow || "none" };
 }
 
 /* ── Small components ── */
@@ -2722,7 +2735,7 @@ function exportToCsv(filename, headers, rows) {
 function StatBox({ value, label, color }) {
   return (
     <div style={S.statBox}>
-      <div style={{ fontSize: T.stat, fontWeight: 700, color: color || C.gold, fontFamily: F.heading, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: T.stat, fontWeight: 700, color: color || C.gold, fontFamily: F.heading, lineHeight: 1, letterSpacing: "-0.5px" }}>{value}</div>
       <div style={{ fontSize: T.meta, color: C.textMuted, letterSpacing: 1, textTransform: "uppercase", marginTop: 6 }}>{label}</div>
     </div>
   );
@@ -11448,11 +11461,11 @@ function App() {
 
       {/* Sidebar */}
       <div className={`app-sidebar${sidebarOpen ? " sidebar-open" : ""}`} role="navigation" aria-label="\u041E\u0441\u043D\u043E\u0432\u043D\u0430\u044F \u043D\u0430\u0432\u0438\u0433\u0430\u0446\u0438\u044F" style={{ width: 280, height: "100vh", background: C.bgSidebar, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, zIndex: 100, overflow: "hidden" }}>
-        <div style={{ padding: "24px 18px 14px", borderBottom: `1px solid ${C.border}`, textAlign: "center" }}>
+        <div style={{ padding: "24px 18px 14px", textAlign: "center", borderBottom: `1px solid transparent`, backgroundImage: `linear-gradient(${C.bgSidebar}, ${C.bgSidebar}) padding-box, linear-gradient(90deg, transparent, ${C.gold}55, transparent) border-box`, backgroundOrigin: "border-box", borderBottomWidth: 1, borderBottomStyle: "solid" }}>
           <img
             src="Group_13388_1.png"
             alt="Эмблема ЕИАС «Фемида»"
-            style={{ width: 114, height: "auto", margin: "0 auto 10px", display: "block", borderRadius: 18, filter: `drop-shadow(0 10px 24px ${C.overlay})` }}
+            style={{ width: 114, height: "auto", margin: "0 auto 10px", display: "block", borderRadius: 18, filter: `drop-shadow(0 10px 24px ${C.overlay}) drop-shadow(0 0 18px ${C.gold}33)` }}
           />
           <div style={{ fontSize: T.bodyStrong, letterSpacing: 2, color: C.gold, fontWeight: 700, textTransform: "uppercase", marginBottom: 4, fontFamily: F.heading }}>Прокуратура РФ</div>
           <div style={{ fontSize: T.meta, color: C.textMuted, letterSpacing: 2 }}>ЕИАС «Фемида» • РМРП</div>

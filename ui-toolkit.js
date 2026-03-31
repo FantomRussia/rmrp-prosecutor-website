@@ -8,7 +8,7 @@ const THEMES = {
   dark: {
     bg: "#04122b", bgCard: "#0a1b3d", bgSidebar: "#06152f", bgInput: "#0d285a",
     border: "#174b98", borderHover: "#2d6bc0",
-    gold: "#5bc0eb", goldDark: "#012d66", goldLight: "#63a4ff",
+    gold: "#c9a84c", goldDark: "#6e5418", goldLight: "#e6c76a",
     crimson: "#0353a4", crimsonLight: "#4ea8de",
     text: "#f2f7ff", textDim: "#c6d4eb", textMuted: "#8ea5c7",
     accent: "#0077b6", accentLight: "#6bb7ff",
@@ -20,7 +20,7 @@ const THEMES = {
   light: {
     bg: "#f0f4f8", bgCard: "#ffffff", bgSidebar: "#e8eef6", bgInput: "#f5f7fa",
     border: "#c8d6e5", borderHover: "#8395a7",
-    gold: "#0077b6", goldDark: "#01497c", goldLight: "#0353a4",
+    gold: "#b8860b", goldDark: "#7a5a08", goldLight: "#d4a017",
     crimson: "#0353a4", crimsonLight: "#4ea8de",
     text: "#1a1d21", textDim: "#4a5568", textMuted: "#718096",
     accent: "#0077b6", accentLight: "#0353a4",
@@ -339,10 +339,10 @@ function EmptyState(props) {
     },
   },
     React.createElement("div", {
-      style: { fontSize: 56, marginBottom: 16, opacity: 0.6, filter: "grayscale(0.3)" },
+      style: { fontSize: 52, marginBottom: 16, opacity: 0.65, lineHeight: 1 },
     }, icon),
     React.createElement("div", {
-      style: { fontSize: 18, fontWeight: 700, color: "#f2f7ff", marginBottom: 8 },
+      style: { fontSize: 22, fontWeight: 600, color: "#f2f7ff", marginBottom: 8, fontFamily: "'Cormorant Garamond', serif", letterSpacing: "0.02em" },
     }, title),
     description && React.createElement("div", {
       style: { fontSize: 14, color: "#8ea5c7", marginBottom: 20, maxWidth: 360, lineHeight: 1.5 },
@@ -510,7 +510,7 @@ function SortableHeader(props) {
     style: {
       padding: "12px 14px", textAlign: "left",
       borderBottom: "1px solid #174b98",
-      color: isActive ? "#5bc0eb" : "#5bc0eb",
+      color: isActive ? "#c9a84c" : "#8ea5c7",
       fontSize: 13, letterSpacing: 1, textTransform: "uppercase",
       fontWeight: 700, cursor: "pointer", userSelect: "none",
       whiteSpace: "nowrap",
