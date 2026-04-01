@@ -1636,6 +1636,17 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
       ),
     ),
 
+    // VUD Checklist — shown starting from prosecution_review
+    (d.status === "prosecution_review" || d.status === "prosecution_approved" || d.status === "prosecution_refused" || d.status === "sent_to_court" || d.status === "verdict_guilty" || d.status === "verdict_partial" || d.status === "verdict_acquitted" || d.status === "completed") && React.createElement("div", { style: { ...sectionStyle, borderLeft: "4px solid #d69a2d" } },
+      React.createElement("h3", { style: { fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 12 } }, "\u2696\uFE0F Чек-лист ВУД"),
+      React.createElement(VudChecklist, {
+        key: d.id + "_" + (d.vudChecklistSavedAt || ""),
+        caseData: d,
+        onSave: handleSaveChecklist,
+        currentUser: user,
+      }),
+    ),
+
     // Timeline
     d.timeline && d.timeline.length > 0 && React.createElement("div", { style: sectionStyle },
       sectionTitle("Таймлайн"),
@@ -1749,17 +1760,6 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
           React.createElement("button", { className: "btn-hover", style: { ...btn("gold"), fontSize: 13 }, onClick: handleAddComment, disabled: savingComment }, "Отправить"),
         ),
       ),
-    ),
-
-    // VUD Checklist — shown starting from prosecution_review
-    (d.status === "prosecution_review" || d.status === "prosecution_approved" || d.status === "prosecution_refused" || d.status === "sent_to_court" || d.status === "verdict_guilty" || d.status === "verdict_partial" || d.status === "verdict_acquitted" || d.status === "completed") && React.createElement("div", { style: { ...sectionStyle, borderLeft: "4px solid #d69a2d" } },
-      React.createElement("h3", { style: { fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 12 } }, "\u2696\uFE0F Чек-лист ВУД"),
-      React.createElement(VudChecklist, {
-        key: d.id + "_" + (d.vudChecklistSavedAt || ""),
-        caseData: d,
-        onSave: handleSaveChecklist,
-        currentUser: user,
-      }),
     ),
 
     // Discord
