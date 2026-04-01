@@ -1,0 +1,20 @@
+{
+  "_comment": "Конфигурация бота ЕИАС «Фемида». ВНИМАНИЕ: токен лучше передавать через переменную окружения DISCORD_TOKEN, а не хранить здесь. Не публикуйте этот файл в репозиторий.",
+  "TOKEN": "YOUR_DISCORD_BOT_TOKEN_HERE",
+  "GUILD_ID": "YOUR_DISCORD_GUILD_ID_HERE",
+  "API_URL": "https://prosecutors-office-rmrp.ru/api.php",
+  "API_SESSION_COOKIE": "PHPSESSID=YOUR_SESSION_COOKIE_HERE",
+  "channels": {
+    "complaints":    "CHANNEL_ID_FOR_COMPLAINTS_AND_EVENTS",
+    "bonuses":       "CHANNEL_ID_FOR_BONUS_NOTIFICATIONS",
+    "registrations": "CHANNEL_ID_FOR_REGISTRATION_REQUESTS",
+    "roster":        "CHANNEL_ID_FOR_STAFF_ROSTER_AUTO_UPDATE",
+    "stats":         "CHANNEL_ID_FOR_STATISTICS",
+    "daily":         "CHANNEL_ID_FOR_DAILY_SUMMARY",
+    "bot_commands":  "CHANNEL_ID_FOR_BOT_COMMANDS",
+    "audit_log":     "CHANNEL_ID_FOR_BOT_AUDIT_LOG"
+  },
+  "poll_interval_seconds": 60,
+  "roster_update_interval_seconds": 300,
+  "daily_summary_hour_utc": 6
+}

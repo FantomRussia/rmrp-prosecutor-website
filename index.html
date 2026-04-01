@@ -8654,7 +8654,7 @@ function PageBonusApproval({ user, reports, setReports, bonuses, setBonuses, use
   const approvedTrackedBonuses = approvedBonuses.filter(bonus => isBonusPayoutTracked(bonus, users, positions));
   const approvedAwaitingDispatchBonuses = approvedTrackedBonuses.filter(bonus => isBonusAwaitingSubjectDispatch(bonus, users, positions));
   const approvedBySubject = SUBJECTS.map(subject => {
-    const subjectBonuses = approvedBonuses.filter(bonus => bonus.subject === subject);
+    const subjectBonuses = approvedTrackedBonuses.filter(bonus => bonus.subject === subject);
     return {
       subject,
       count: subjectBonuses.length,

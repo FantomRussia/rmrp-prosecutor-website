@@ -1,0 +1,8 @@
+# ЕИАС «Фемида» Discord Bot — Python зависимости
+# Установка: pip install -r bot_requirements.txt
+
+# Discord API wrapper с поддержкой slash-команд (app_commands) и задач (tasks)
+discord.py[voice]>=2.3.2,<3.0.0
+
+# Асинхронный HTTP-клиент для обращений к api.php
+aiohttp>=3.9.0,<4.0.0
