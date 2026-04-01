@@ -1596,15 +1596,25 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
     allowedTransitions.length > 0 && (isManager || isAssigned || isSupervisor || isCreator) && React.createElement("div", { style: { ...sectionStyle, borderLeft: "4px solid " + C.warning } },
       sectionTitle("Изменение статуса"),
       React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 } },
-        allowedTransitions.map(st =>
-          React.createElement("button", {
-            key: st,
-            className: "btn-hover",
-            style: { ...btn("subtle"), fontSize: 13, borderColor: (CASE_STATUSES[st] || {}).color || C.accent },
-            onClick: () => handleChangeStatus(st),
-            disabled: savingStatus,
-          }, (CASE_STATUSES[st] || {}).icon + " " + (CASE_STATUSES[st] || {}).label),
-        ),
+        allowedTransitions.map(st => {
+          const isApprove = st === "prosecution_approved";
+          const totalChecklistItems = VUD_CHECKLIST_STAGES.reduce((acc, s) => acc + s.items.length, 0);
+          const checkedItems = Object.values(d.vudChecklist || {}).filter(Boolean).length;
+          const checklistComplete = checkedItems >= totalChecklistItems;
+          const blockApprove = isApprove && !checklistComplete;
+          return React.createElement("div", { key: st, style: { display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 4 } },
+            React.createElement("button", {
+              className: blockApprove ? undefined : "btn-hover",
+              style: { ...btn("subtle"), fontSize: 13, borderColor: blockApprove ? C.textMuted : (CASE_STATUSES[st] || {}).color || C.accent, opacity: blockApprove ? 0.45 : 1, cursor: blockApprove ? "not-allowed" : "pointer" },
+              onClick: blockApprove ? undefined : () => handleChangeStatus(st),
+              disabled: savingStatus || blockApprove,
+              title: blockApprove ? `Заполните чек-лист ВУД (${checkedItems}/${totalChecklistItems})` : undefined,
+            }, (CASE_STATUSES[st] || {}).icon + " " + (CASE_STATUSES[st] || {}).label),
+            blockApprove && React.createElement("span", {
+              style: { fontSize: 11, color: C.warning, textAlign: "center", maxWidth: 160 },
+            }, `Чек-лист: ${checkedItems}/${totalChecklistItems}`),
+          );
+        }),
       ),
       // Stage result field (if needed for any allowed transition)
       allowedTransitions.some(s => CASE_TRANSITION_REQUIRES_STAGE_RESULT.includes(s)) && React.createElement("div", { style: { marginBottom: 8 } },
@@ -1741,8 +1751,8 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
       ),
     ),
 
-    // VUD Checklist — shown for criminal_case_opened and later stages
-    (d.status === "criminal_case_opened" || d.status === "prosecution_review" || d.status === "prosecution_approved" || d.status === "prosecution_refused" || d.status === "sent_to_court" || d.status === "verdict_guilty" || d.status === "verdict_partial" || d.status === "verdict_acquitted" || d.status === "completed") && React.createElement("div", { style: { ...sectionStyle, borderLeft: "4px solid #d69a2d" } },
+    // VUD Checklist — shown starting from prosecution_review
+    (d.status === "prosecution_review" || d.status === "prosecution_approved" || d.status === "prosecution_refused" || d.status === "sent_to_court" || d.status === "verdict_guilty" || d.status === "verdict_partial" || d.status === "verdict_acquitted" || d.status === "completed") && React.createElement("div", { style: { ...sectionStyle, borderLeft: "4px solid #d69a2d" } },
       React.createElement("h3", { style: { fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 12 } }, "\u2696\uFE0F Чек-лист ВУД"),
       React.createElement(VudChecklist, {
         key: d.id + "_" + (d.vudChecklistSavedAt || ""),
