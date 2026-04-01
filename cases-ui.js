@@ -188,6 +188,375 @@ function daysUntilDeadline(item) {
   return diff;
 }
 
+// ── VUD Checklist ──
+
+const VUD_CHECKLIST_STAGES = [
+  {
+    id: 1,
+    title: "Титульный лист дела",
+    items: [
+      { id: "1_1", text: "Указан полный орган расследования" },
+      { id: "1_2", text: "Указан номер уголовного дела" },
+      { id: "1_3", text: "Указано, в отношении кого ведётся дело" },
+      { id: "1_4", text: "Указана правильная квалификация деяния" },
+      { id: "1_5", text: "Заполнены даты: когда дело возбуждено и когда окончено" },
+      { id: "1_6", text: "Указан город и год оформления" },
+      { id: "1_7", text: "Формулировки на титуле совпадают с дальнейшими документами дела" },
+    ]
+  },
+  {
+    id: 2,
+    title: "Сквозные реквизиты по всем документам",
+    items: [
+      { id: "2_1", text: "Во всех документах одинаково написаны номер дела, ФИО фигуранта, должность, звание, орган" },
+      { id: "2_2", text: "Нет расхождений в статье УК/УПК/ПК между документами" },
+      { id: "2_3", text: "Везде одинаково указан город составления" },
+      { id: "2_4", text: "Даты логически последовательны и не противоречат друг другу" },
+      { id: "2_5", text: "Нумерация постановлений последовательная и без пропусков" },
+      { id: "2_6", text: "Везде соблюдён единый стиль наименования подразделений и должностей" },
+    ]
+  },
+  {
+    id: 3,
+    title: "Рапорт об обнаружении признаков преступления",
+    items: [
+      { id: "3_1", text: "Есть адресат рапорта" },
+      { id: "3_2", text: "Есть дата и исходящий номер" },
+      { id: "3_3", text: "Указан составитель рапорта: должность, звание, ФИО" },
+      { id: "3_4", text: "Описаны обстоятельства события: кто, где, когда, что сделал" },
+      { id: "3_5", text: "Указано, в чём именно усматриваются признаки преступления" },
+      { id: "3_6", text: "Есть ссылка на конкретную статью УК" },
+      { id: "3_7", text: "Описаны основания, почему действия признаны противоправными" },
+      { id: "3_8", text: "Указаны материалы, на которые ссылается составитель" },
+      { id: "3_9", text: "Есть подпись или отметка об электронной подписи" },
+      { id: "3_10", text: "При наличии копии — есть отметка «Копия верна» и реквизиты заверения" },
+    ]
+  },
+  {
+    id: 4,
+    title: "Постановление о возбуждении уголовного дела и принятии к производству",
+    items: [
+      { id: "4_1", text: "Есть полное название документа" },
+      { id: "4_2", text: "Указаны место, дата и номер акта" },
+      { id: "4_3", text: "Указано лицо, вынесшее постановление" },
+      { id: "4_4", text: "Заполнен повод к возбуждению уголовного дела" },
+      { id: "4_5", text: "В разделе «УСТАНОВИЛ» описаны фактические обстоятельства" },
+      { id: "4_6", text: "Приведены достаточные данные, указывающие на признаки преступления" },
+      { id: "4_7", text: "Есть ссылка на правовые основания" },
+      { id: "4_8", text: "В резолютивной части: возбудить дело" },
+      { id: "4_9", text: "В резолютивной части: присвоить номер делу" },
+      { id: "4_10", text: "В резолютивной части: принять дело к производству" },
+      { id: "4_11", text: "В резолютивной части: направить копии заинтересованным лицам" },
+      { id: "4_12", text: "Есть подпись, должность, звание, ФИО" },
+    ]
+  },
+  {
+    id: 5,
+    title: "Постановление о признании потерпевшим",
+    items: [
+      { id: "5_1", text: "Есть дата, место и номер акта" },
+      { id: "5_2", text: "Указано, кем вынесено постановление" },
+      { id: "5_3", text: "Описано, в результате каких действий причинён вред" },
+      { id: "5_4", text: "Указано, кому именно причинён вред" },
+      { id: "5_5", text: "Формулировка потерпевшего совпадает с фактическими обстоятельствами дела" },
+      { id: "5_6", text: "Если лицо не установлено, это одинаково отражено во всех документах" },
+      { id: "5_7", text: "Есть ссылка на процессуальную норму" },
+      { id: "5_8", text: "В резолютивной части прямо указано: признать потерпевшим по конкретному делу" },
+      { id: "5_9", text: "Есть подпись и реквизиты должностного лица" },
+    ]
+  },
+  {
+    id: 6,
+    title: "Постановление о признании предметов вещественными доказательствами",
+    items: [
+      { id: "6_1", text: "Указан номер уголовного дела" },
+      { id: "6_2", text: "Есть описание предмета или носителя, признаваемого вещественным доказательством" },
+      { id: "6_3", text: "Указано происхождение доказательства: откуда получено, кем представлено, за какой период" },
+      { id: "6_4", text: "Описание доказательства конкретное, без расплывчатых формулировок" },
+      { id: "6_5", text: "Есть обоснование, почему объект имеет значение для дела" },
+      { id: "6_6", text: "Есть ссылка на процессуальную норму" },
+      { id: "6_7", text: "В резолютивной части: признать вещественным доказательством" },
+      { id: "6_8", text: "В резолютивной части: приобщить к делу" },
+      { id: "6_9", text: "Наименование доказательства совпадает с тем, как оно указано в обвинительном заключении" },
+    ]
+  },
+  {
+    id: 7,
+    title: "Обвинительное заключение",
+    items: [
+      { id: "7_1", text: "Есть полное наименование документа" },
+      { id: "7_2", text: "Указаны место, дата и номер акта" },
+      { id: "7_3", text: "Указано должностное лицо, составившее документ" },
+      { id: "7_4", text: "Полностью идентифицирован обвиняемый" },
+      { id: "7_5", text: "Указана точная квалификация деяния" },
+      { id: "7_6", text: "Фабула обвинения изложена последовательно и понятно" },
+      { id: "7_7", text: "Описаны конкретные действия обвиняемого" },
+      { id: "7_8", text: "Указаны последствия деяния" },
+      { id: "7_9", text: "Перечислены доказательства, подтверждающие обвинение" },
+      { id: "7_10", text: "Отражены обстоятельства, исключающие преступность деяния" },
+      { id: "7_11", text: "Отражены смягчающие обстоятельства" },
+      { id: "7_12", text: "Отражены отягчающие обстоятельства" },
+      { id: "7_13", text: "Указаны приложения к обвинительному заключению" },
+      { id: "7_14", text: "Нет противоречий между фабулой, квалификацией и доказательствами" },
+    ]
+  },
+  {
+    id: 8,
+    title: "Постановление о передаче дела прокурору для направления в суд",
+    items: [
+      { id: "8_1", text: "Есть дата, место и номер акта" },
+      { id: "8_2", text: "Указано лицо, вынесшее постановление" },
+      { id: "8_3", text: "Отражено, что предварительное следствие окончено" },
+      { id: "8_4", text: "Указано, что собраны достаточные доказательства" },
+      { id: "8_5", text: "Сформулировано основание для передачи дела прокурору" },
+      { id: "8_6", text: "В резолютивной части: окончить предварительное следствие" },
+      { id: "8_7", text: "В резолютивной части: направить дело прокурору для утверждения и передачи в суд" },
+      { id: "8_8", text: "Реквизиты должностного лица указаны полностью" },
+    ]
+  },
+  {
+    id: 9,
+    title: "Сквозная логическая проверка всего дела",
+    items: [
+      { id: "9_1", text: "Событие преступления одинаково описано во всех документах" },
+      { id: "9_2", text: "Один и тот же фигурант одинаково назван везде" },
+      { id: "9_3", text: "Нет расхождений по времени, месту и способу совершения деяния" },
+      { id: "9_4", text: "Основание возбуждения дела соответствует содержанию рапорта" },
+      { id: "9_5", text: "Вещественные доказательства из постановления упомянуты в обвинительном заключении" },
+      { id: "9_6", text: "Потерпевший из постановления не противоречит фабуле обвинения" },
+      { id: "9_7", text: "Дело не передано прокурору раньше, чем оформлены основные процессуальные документы" },
+      { id: "9_8", text: "Финальная дата окончания дела соответствует последнему процессуальному документу" },
+    ]
+  },
+  {
+    id: 10,
+    title: "Дополнительные критерии проверки",
+    items: [
+      { id: "10_1", text: "Единообразие сокращений органа расследования по всем документам" },
+      { id: "10_2", text: "Единообразие написания ФИО и инициалов" },
+      { id: "10_3", text: "Номер удостоверяющего документа везде указан одинаково" },
+      { id: "10_4", text: "Ссылки на нормы права внутренне непротиворечивы" },
+      { id: "10_5", text: "Приложения, упомянутые в обвинительном заключении, реально есть в материалах дела" },
+      { id: "10_6", text: "Наличие подписи, ЭП, отметок заверения копий там, где они должны быть" },
+    ]
+  },
+];
+
+function VudChecklist({ caseData, onSave, currentUser }) {
+  const totalItems = VUD_CHECKLIST_STAGES.reduce((acc, s) => acc + s.items.length, 0);
+
+  const [checklist, setChecklist] = useState(() => {
+    const base = {};
+    VUD_CHECKLIST_STAGES.forEach(s => s.items.forEach(item => { base[item.id] = false; }));
+    return Object.assign(base, caseData.vudChecklist || {});
+  });
+  const [activeStage, setActiveStage] = useState(1);
+  const [saving, setSaving] = useState(false);
+
+  const checkedCount = Object.values(checklist).filter(Boolean).length;
+
+  const isReadOnly = !currentUser || (
+    currentUser.id !== caseData.assignedStaffId &&
+    currentUser.id !== caseData.supervisorId &&
+    currentUser.id !== caseData.createdBy &&
+    currentUser.role !== "FEDERAL" &&
+    !hasSystemAdminAccess(currentUser) &&
+    currentUser.role !== "BOSS" &&
+    currentUser.role !== "SENIOR_STAFF" &&
+    currentUser.role !== "USP"
+  );
+
+  const stageCheckedCount = (stage) => stage.items.filter(item => checklist[item.id]).length;
+  const stageComplete = (stage) => stageCheckedCount(stage) === stage.items.length;
+
+  const handleToggle = (itemId) => {
+    if (isReadOnly) return;
+    setChecklist(prev => ({ ...prev, [itemId]: !prev[itemId] }));
+  };
+
+  const handleSave = async () => {
+    if (isReadOnly) return;
+    setSaving(true);
+    try {
+      await onSave(checklist);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const currentStageData = VUD_CHECKLIST_STAGES.find(s => s.id === activeStage);
+  const progressPct = totalItems > 0 ? Math.round((checkedCount / totalItems) * 100) : 0;
+
+  return React.createElement("div", null,
+
+    // Overall progress bar
+    React.createElement("div", { style: { marginBottom: 16 } },
+      React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 } },
+        React.createElement("span", { style: { fontSize: 13, color: C.textDim, fontWeight: 600 } }, "Общий прогресс"),
+        React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: checkedCount === totalItems ? C.success : C.text } },
+          checkedCount + "/" + totalItems + " (" + progressPct + "%)"
+        ),
+      ),
+      React.createElement("div", { style: { height: 8, borderRadius: 4, background: C.border, overflow: "hidden" } },
+        React.createElement("div", {
+          style: {
+            height: "100%",
+            borderRadius: 4,
+            width: progressPct + "%",
+            background: checkedCount === totalItems
+              ? C.success
+              : "linear-gradient(90deg, #d69a2d, #f0c040)",
+            transition: "width 0.3s ease",
+          },
+        }),
+      ),
+    ),
+
+    // Stage tabs
+    React.createElement("div", { style: { display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 16 } },
+      VUD_CHECKLIST_STAGES.map(stage => {
+        const done = stageCheckedCount(stage);
+        const total = stage.items.length;
+        const complete = done === total;
+        const isActive = activeStage === stage.id;
+        return React.createElement("button", {
+          key: stage.id,
+          className: "btn-hover",
+          style: {
+            padding: "6px 12px",
+            borderRadius: 8,
+            border: "1px solid " + (complete ? C.success : isActive ? C.accent : C.border),
+            cursor: "pointer",
+            fontSize: 13,
+            fontWeight: isActive ? 700 : 400,
+            background: complete ? C.success + "22" : isActive ? C.accent + "22" : "transparent",
+            color: complete ? C.success : isActive ? C.accent : C.textDim,
+            position: "relative",
+            minWidth: 36,
+          },
+          onClick: () => setActiveStage(stage.id),
+        },
+          React.createElement("span", null, stage.id),
+          React.createElement("span", {
+            style: {
+              marginLeft: 4,
+              fontSize: 11,
+              fontWeight: 700,
+              color: complete ? C.success : C.textMuted,
+            },
+          }, done + "/" + total),
+        );
+      }),
+    ),
+
+    // Stage content
+    currentStageData && React.createElement("div", null,
+      React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 } },
+        React.createElement("h4", { style: { fontSize: 15, fontWeight: 700, color: C.text, margin: 0 } },
+          currentStageData.id + ". " + currentStageData.title,
+        ),
+        React.createElement("span", {
+          style: {
+            fontSize: 12,
+            fontWeight: 700,
+            padding: "2px 10px",
+            borderRadius: 12,
+            background: stageComplete(currentStageData) ? C.success + "22" : C.border,
+            color: stageComplete(currentStageData) ? C.success : C.textMuted,
+            border: "1px solid " + (stageComplete(currentStageData) ? C.success + "44" : C.border),
+          },
+        }, stageCheckedCount(currentStageData) + "/" + currentStageData.items.length),
+      ),
+
+      // Items
+      React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
+        currentStageData.items.map(item => {
+          const checked = !!checklist[item.id];
+          return React.createElement("div", {
+            key: item.id,
+            style: {
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 10,
+              padding: "8px 12px",
+              borderRadius: 8,
+              background: checked ? "#d69a2d11" : C.bgCard,
+              border: "1px solid " + (checked ? "#d69a2d44" : C.border),
+              cursor: isReadOnly ? "default" : "pointer",
+              transition: "background 0.15s",
+            },
+            onClick: () => handleToggle(item.id),
+          },
+            // Custom checkbox
+            React.createElement("div", {
+              style: {
+                flexShrink: 0,
+                width: 18,
+                height: 18,
+                borderRadius: 4,
+                marginTop: 1,
+                border: "2px solid " + (checked ? "#d69a2d" : C.textMuted + "88"),
+                background: checked ? "#d69a2d" : "transparent",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.15s",
+              },
+            }, checked ? React.createElement("span", { style: { color: "#fff", fontSize: 11, fontWeight: 900, lineHeight: 1 } }, "\u2713") : null),
+            // Text
+            React.createElement("span", {
+              style: {
+                fontSize: 14,
+                color: checked ? C.text : C.textDim,
+                textDecoration: checked ? "none" : "none",
+                lineHeight: 1.5,
+                userSelect: "none",
+              },
+            }, item.text),
+          );
+        }),
+      ),
+    ),
+
+    // Stage navigation
+    React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "space-between", marginTop: 14 } },
+      React.createElement("button", {
+        className: "btn-hover",
+        style: { ...btn("ghost"), fontSize: 13, opacity: activeStage <= 1 ? 0.4 : 1 },
+        disabled: activeStage <= 1,
+        onClick: () => setActiveStage(s => Math.max(1, s - 1)),
+      }, "\u2190 Назад"),
+      React.createElement("button", {
+        className: "btn-hover",
+        style: { ...btn("ghost"), fontSize: 13, opacity: activeStage >= 10 ? 0.4 : 1 },
+        disabled: activeStage >= 10,
+        onClick: () => setActiveStage(s => Math.min(10, s + 1)),
+      }, "Далее \u2192"),
+    ),
+
+    // Save button + last saved info
+    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginTop: 16, flexWrap: "wrap" } },
+      !isReadOnly && React.createElement("button", {
+        className: "btn-hover",
+        style: btn("gold"),
+        onClick: handleSave,
+        disabled: saving,
+      }, saving ? "Сохранение..." : "Сохранить чеклист"),
+      (caseData.vudChecklistSavedAt || caseData.vudChecklistSavedBy) && React.createElement("span", {
+        style: { fontSize: 12, color: C.textMuted },
+      },
+        "Последнее сохранение: " +
+        (caseData.vudChecklistSavedBy || "") +
+        (caseData.vudChecklistSavedAt ? " · " + caseData.vudChecklistSavedAt : "")
+      ),
+    ),
+
+    isReadOnly && React.createElement("div", { style: { fontSize: 12, color: C.textMuted, marginTop: 8 } },
+      "Просмотр — нет прав для редактирования чеклиста.",
+    ),
+  );
+}
+
 // ── PageCases ──
 
 function PageCases({ user, users, factions, casesMeta, checksMeta, onRefresh, onNavigate }) {
@@ -934,6 +1303,20 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
     }
   };
 
+  const handleSaveChecklist = async (checklistData) => {
+    try {
+      await apiRequest("cases.update", {
+        caseId,
+        vudChecklist: checklistData,
+        vudChecklistSavedAt: new Date().toISOString().slice(0, 19).replace("T", " "),
+        vudChecklistSavedBy: user ? ((user.surname || "") + " " + (user.name || "")).trim() || user.id : "",
+      });
+      await loadCase();
+    } catch (e) {
+      showError(e.message || "Ошибка сохранения чеклиста");
+    }
+  };
+
   if (loading) return React.createElement("div", { style: { padding: 20 } },
     React.createElement(SkeletonCard, null),
     React.createElement("div", { style: { height: 12 } }),
@@ -1356,6 +1739,17 @@ function CaseDetailView({ caseId, user, users, factions, checksMeta, onBack, onR
           React.createElement("button", { className: "btn-hover", style: { ...btn("gold"), fontSize: 13 }, onClick: handleAddComment, disabled: savingComment }, "Отправить"),
         ),
       ),
+    ),
+
+    // VUD Checklist — shown for criminal_case_opened and later stages
+    (d.status === "criminal_case_opened" || d.status === "prosecution_review" || d.status === "prosecution_approved" || d.status === "prosecution_refused" || d.status === "sent_to_court" || d.status === "verdict_guilty" || d.status === "verdict_partial" || d.status === "verdict_acquitted" || d.status === "completed") && React.createElement("div", { style: { ...sectionStyle, borderLeft: "4px solid #d69a2d" } },
+      React.createElement("h3", { style: { fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 12 } }, "\u2696\uFE0F Чек-лист ВУД"),
+      React.createElement(VudChecklist, {
+        key: d.id + "_" + (d.vudChecklistSavedAt || ""),
+        caseData: d,
+        onSave: handleSaveChecklist,
+        currentUser: user,
+      }),
     ),
 
     // Discord

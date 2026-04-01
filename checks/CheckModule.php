@@ -4465,6 +4465,9 @@ function cases_ensure_schema(PDO $pdo): void
             discord_thread_id VARCHAR(64) DEFAULT NULL,
             discord_message_id VARCHAR(64) DEFAULT NULL,
             discord_channel_id VARCHAR(64) DEFAULT NULL,
+            vud_checklist LONGTEXT DEFAULT NULL,
+            vud_checklist_saved_at DATETIME DEFAULT NULL,
+            vud_checklist_saved_by VARCHAR(255) DEFAULT NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
             deleted_at DATETIME DEFAULT NULL,
@@ -4541,6 +4544,17 @@ function cases_ensure_schema(PDO $pdo): void
     // Migration: add sk_executor_name to cases
     try {
         $pdo->exec("ALTER TABLE cases ADD COLUMN sk_executor_name VARCHAR(255) DEFAULT NULL AFTER supervisor_id");
+    } catch (Exception $e) { /* already exists */ }
+
+    // Migration: add VUD checklist fields
+    try {
+        $pdo->exec("ALTER TABLE cases ADD COLUMN vud_checklist LONGTEXT DEFAULT NULL");
+    } catch (Exception $e) { /* already exists */ }
+    try {
+        $pdo->exec("ALTER TABLE cases ADD COLUMN vud_checklist_saved_at DATETIME DEFAULT NULL");
+    } catch (Exception $e) { /* already exists */ }
+    try {
+        $pdo->exec("ALTER TABLE cases ADD COLUMN vud_checklist_saved_by VARCHAR(255) DEFAULT NULL");
     } catch (Exception $e) { /* already exists */ }
 }
 
@@ -4680,6 +4694,11 @@ function cases_format_row(array $row, array $state): array
         'discordThreadId' => $row['discord_thread_id'],
         'discordMessageId' => $row['discord_message_id'],
         'discordChannelId' => $row['discord_channel_id'],
+        'vudChecklist' => isset($row['vud_checklist']) && $row['vud_checklist'] !== null
+            ? (json_decode($row['vud_checklist'], true) ?: [])
+            : [],
+        'vudChecklistSavedAt' => $row['vud_checklist_saved_at'] ?? null,
+        'vudChecklistSavedBy' => $row['vud_checklist_saved_by'] ?? null,
         'createdAt' => $row['created_at'],
         'updatedAt' => $row['updated_at'],
     ];
@@ -5413,6 +5432,20 @@ function cases_handle_update(PDO $pdo, array &$state): void
             $val = trim((string)$body[$jsKey]);
             $updates[] = "$dbCol = :$dbCol";
             $params[":$dbCol"] = $val !== '' ? $val : null;
+        }
+    }
+
+    // VUD checklist — any authenticated participant can save
+    if (array_key_exists('vudChecklist', $body) && is_array($body['vudChecklist'])) {
+        $updates[] = 'vud_checklist = :vud_checklist';
+        $params[':vud_checklist'] = json_encode($body['vudChecklist'], JSON_UNESCAPED_UNICODE);
+        if (!empty($body['vudChecklistSavedAt'])) {
+            $updates[] = 'vud_checklist_saved_at = :vud_checklist_saved_at';
+            $params[':vud_checklist_saved_at'] = substr((string)$body['vudChecklistSavedAt'], 0, 19);
+        }
+        if (!empty($body['vudChecklistSavedBy'])) {
+            $updates[] = 'vud_checklist_saved_by = :vud_checklist_saved_by';
+            $params[':vud_checklist_saved_by'] = substr((string)$body['vudChecklistSavedBy'], 0, 255);
         }
     }
 
